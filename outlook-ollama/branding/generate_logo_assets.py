@@ -75,16 +75,16 @@ def main() -> None:
         _fit_square(ribbon_source, s).save(out, format="PNG")
         print(f"  wrote {out.relative_to(REPO_ROOT)} ({s}x{s}, {src_label})")
 
-    # Start Menu / Desktop shortcut icon - full wordmark.
-    _write_ico(logo_full, LOGO_ICO_OUT)
-    print(f"  wrote {LOGO_ICO_OUT.relative_to(REPO_ROOT)} (sizes: {ICO_SIZES})")
-
-    # Embedded window/tray/exe icon - simplified mark so it reads at 16x16.
-    if app_icon is not None:
-        _write_ico(app_icon, APP_ICON_ICO_OUT)
-        print(f"  wrote {APP_ICON_ICO_OUT.relative_to(REPO_ROOT)} (sizes: {ICO_SIZES})")
-    else:
-        print("  (app_icon.png missing - run _render_mark.py first for a crisp tray icon)")
+    # .ico files are always square. Both the shortcut icon and the embedded
+    # exe icon use the simplified mark so they stay legible at 16x16. The
+    # full wide wordmark logo.png is only used where the aspect ratio fits
+    # (popup header, Outlook task pane header).
+    ico_source = app_icon if app_icon is not None else logo_full
+    ico_label = "mark" if app_icon is not None else "full"
+    _write_ico(ico_source, LOGO_ICO_OUT)
+    print(f"  wrote {LOGO_ICO_OUT.relative_to(REPO_ROOT)} (sizes: {ICO_SIZES}, {ico_label})")
+    _write_ico(ico_source, APP_ICON_ICO_OUT)
+    print(f"  wrote {APP_ICON_ICO_OUT.relative_to(REPO_ROOT)} (sizes: {ICO_SIZES}, {ico_label})")
 
 
 if __name__ == "__main__":

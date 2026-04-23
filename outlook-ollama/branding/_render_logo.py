@@ -1,217 +1,126 @@
-"""Render the ACNR Intelligence logo from a vendored US silhouette.
+"""Render the ACNR Intelligence wide logo banner.
 
-Source: us-atlas nation-albers-10m.json (ISC-licensed, Michael Bostock).
+Matches the artwork the customer supplied: four lines of stacked text on the
+left ("AMERICAN / CONSOLIDATED / NATURAL / RESOURCES, INC.") and a red
+lower-48 silhouette on the right. White background so it reads cleanly on
+light and dark popup themes alike.
 
-The output replaces outlook-ollama/branding/logo.png, then the caller should
-run generate_logo_assets.py to rebuild the .ico and the Office ribbon PNGs.
-
-Style: dark crimson US silhouette centered on a white square, with the
-"AMERICAN CONSOLIDATED NATURAL RESOURCES, INC." wordmark wrapped above and
-below. Designed to read cleanly at 16x16 through 512x512.
+Source geometry: us-atlas nation-albers-10m.json (ISC, Michael Bostock).
 """
 from __future__ import annotations
 
 import json
-import math
 from pathlib import Path
 from typing import List, Tuple
 
 from PIL import Image, ImageDraw, ImageFont
 
+from _render_logo_common import polygons_from_topology, scale_polygons_to_box, polygon_area
+
 HERE = Path(__file__).resolve().parent
 TOPO = HERE / "vendor" / "us-nation-albers-10m.json"
 OUT  = HERE / "logo.png"
 
-SIZE       = 1024
-MARGIN     = 40
-RED        = (178, 34, 34, 255)    # firebrick / ACNR red
-RED_DARK   = (120, 20, 20, 255)
-WHITE      = (255, 255, 255, 255)
+# Wide banner dimensions. The popup header and Outlook task pane both render
+# this scaled; 1200x500 gives us a 2.4:1 aspect that fits both nicely.
+WIDTH       = 1200
+HEIGHT      = 500
+MARGIN      = 30
 
-WORDMARK_TOP    = "AMERICAN CONSOLIDATED NATURAL RESOURCES, INC."
-WORDMARK_BOTTOM = "ACNR INTELLIGENCE"
+# Left/right split: 45% text, 55% map.
+TEXT_FRAC   = 0.45
 
+RED         = (178, 34, 34, 255)     # ACNR firebrick red
+RED_DARK    = (120, 20, 20, 255)
+TEXT_COLOR  = (70, 70, 70, 255)      # near-black, matches the reference art
+HIGHLIGHT   = (178, 34, 34, 255)     # red used for "NATURAL" accent line
+BG          = (255, 255, 255, 255)   # white
 
-# ---------------------------------------------------------------------------
-# TopoJSON -> polygon decoding
-# ---------------------------------------------------------------------------
-def _decode_arc(arc: List[List[int]], scale, translate) -> List[Tuple[float, float]]:
-    """TopoJSON stores arcs as delta-encoded quantized coordinates. Undo that."""
-    x = y = 0
-    pts: List[Tuple[float, float]] = []
-    for dx, dy in arc:
-        x += dx
-        y += dy
-        pts.append((x * scale[0] + translate[0], y * scale[1] + translate[1]))
-    return pts
+LINES = ["AMERICAN", "CONSOLIDATED", "NATURAL", "RESOURCES, INC."]
+# Line 3 ("NATURAL") is drawn in red to match the source artwork's accent.
+RED_LINE_INDEX = 2
 
 
-def _polygons_from_topology(topo: dict) -> List[List[Tuple[float, float]]]:
-    arcs_raw = topo["arcs"]
-    scale = topo["transform"]["scale"]
-    translate = topo["transform"]["translate"]
-    decoded_arcs = [_decode_arc(a, scale, translate) for a in arcs_raw]
-
-    def ring(arc_indices: List[int]) -> List[Tuple[float, float]]:
-        pts: List[Tuple[float, float]] = []
-        for idx in arc_indices:
-            if idx < 0:
-                seg = list(reversed(decoded_arcs[~idx]))
-            else:
-                seg = decoded_arcs[idx]
-            if pts and seg:
-                # Arcs share endpoints; skip the duplicate.
-                seg = seg[1:]
-            pts.extend(seg)
-        return pts
-
-    polys: List[List[Tuple[float, float]]] = []
-    for geom in topo["objects"]["nation"]["geometries"]:
-        gtype = geom["type"]
-        arcs = geom["arcs"]
-        if gtype == "Polygon":
-            for r in arcs:
-                polys.append(ring(r))
-        elif gtype == "MultiPolygon":
-            for poly in arcs:
-                for r in poly:
-                    polys.append(ring(r))
-    return polys
-
-
-def _load_us_polygons() -> List[List[Tuple[float, float]]]:
-    topo = json.loads(TOPO.read_text())
-    return _polygons_from_topology(topo)
-
-
-# ---------------------------------------------------------------------------
-# Font loading
-# ---------------------------------------------------------------------------
 def _font(size: int, bold: bool = True) -> ImageFont.FreeTypeFont:
-    candidates = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "C:/Windows/Fonts/arialbd.ttf" if bold else "C:/Windows/Fonts/arial.ttf",
-        "/Library/Fonts/Arial Bold.ttf" if bold else "/Library/Fonts/Arial.ttf",
+    candidates_bold = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "C:/Windows/Fonts/arialbd.ttf",
+        "/Library/Fonts/Arial Bold.ttf",
     ]
-    for c in candidates:
+    candidates_reg = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "C:/Windows/Fonts/arial.ttf",
+        "/Library/Fonts/Arial.ttf",
+    ]
+    for p in (candidates_bold if bold else candidates_reg):
         try:
-            return ImageFont.truetype(c, size)
+            return ImageFont.truetype(p, size)
         except OSError:
             continue
     return ImageFont.load_default()
 
 
-# ---------------------------------------------------------------------------
-# Logo composition
-# ---------------------------------------------------------------------------
-def _scale_polygons_to_box(
-    polys: List[List[Tuple[float, float]]],
-    box: Tuple[int, int, int, int],
-) -> List[List[Tuple[float, float]]]:
-    """Fit all polygons into the given pixel box (x0, y0, x1, y1), preserving aspect."""
-    all_pts = [p for poly in polys for p in poly]
-    xs = [p[0] for p in all_pts]
-    ys = [p[1] for p in all_pts]
-    src_w = max(xs) - min(xs)
-    src_h = max(ys) - min(ys)
-    dst_w = box[2] - box[0]
-    dst_h = box[3] - box[1]
-    scale = min(dst_w / src_w, dst_h / src_h)
-    new_w = src_w * scale
-    new_h = src_h * scale
-    off_x = box[0] + (dst_w - new_w) / 2 - min(xs) * scale
-    off_y = box[1] + (dst_h - new_h) / 2 - min(ys) * scale
-    return [[(x * scale + off_x, y * scale + off_y) for x, y in poly] for poly in polys]
+def _largest_polygon(polys: List[List[Tuple[float, float]]]) -> List[Tuple[float, float]]:
+    """Return just the continental US polygon (drops AK, HI, outlying islands)."""
+    return max(polys, key=polygon_area)
 
 
-def _draw_curved_text(
-    draw: ImageDraw.ImageDraw,
-    text: str,
-    center: Tuple[float, float],
-    radius: float,
-    start_angle_deg: float,
-    end_angle_deg: float,
-    font: ImageFont.FreeTypeFont,
-    fill,
-    img: Image.Image,
-) -> None:
-    """Render `text` along an arc from start to end angle (degrees, 0 = east, CCW)."""
-    # Measure per-character widths to distribute evenly along the arc.
-    widths = [draw.textlength(ch, font=font) for ch in text]
-    total = sum(widths)
-    if total == 0:
-        return
-
-    arc_len = math.radians(end_angle_deg - start_angle_deg) * radius
-    # Use the smaller of "natural" and "arc" so we never overflow.
-    if arc_len > total:
-        # Center the text by shrinking the span.
-        arc_extent = total / radius
-        start = math.radians((start_angle_deg + end_angle_deg) / 2) - arc_extent / 2
-        end = start + arc_extent
-        arc_len = total
-    else:
-        start = math.radians(start_angle_deg)
-        end = math.radians(end_angle_deg)
-
-    pos = 0.0
-    for ch, w in zip(text, widths):
-        frac = (pos + w / 2) / total
-        theta = start + frac * (end - start)
-        # For the bottom arc we want text facing outward (readable from outside).
-        # For the top arc text faces inward (readable from outside naturally).
-        is_bottom = math.sin(theta) > 0
-        tangent = theta + math.pi / 2 if not is_bottom else theta - math.pi / 2
-        cx = center[0] + radius * math.cos(theta)
-        cy = center[1] - radius * math.sin(theta)   # PIL y is flipped
-        # Render the character onto a small transparent canvas, rotate, paste.
-        ch_img = Image.new("RGBA", (int(w) + 8, font.size + 8), (0, 0, 0, 0))
-        ch_draw = ImageDraw.Draw(ch_img)
-        ch_draw.text((4, 4), ch, font=font, fill=fill)
-        rot_deg = math.degrees(tangent)
-        rotated = ch_img.rotate(rot_deg, resample=Image.Resampling.BICUBIC, expand=True)
-        img.alpha_composite(
-            rotated,
-            (int(cx - rotated.width / 2), int(cy - rotated.height / 2)),
-        )
-        pos += w
+def _fit_text_to_width(lines: List[str], max_width: int, max_height: int,
+                       bold: bool = True) -> Tuple[ImageFont.FreeTypeFont, int]:
+    """Find the largest font size such that every line fits in max_width and
+    the stacked block fits in max_height. Returns (font, line_height)."""
+    # Upper bound: 1/len(lines) of max_height so all lines fit vertically.
+    best = 12
+    line_spacing = 1.15
+    for size in range(200, 20, -2):
+        font = _font(size, bold=bold)
+        dummy = Image.new("RGBA", (10, 10))
+        d = ImageDraw.Draw(dummy)
+        widths = [d.textlength(t, font=font) for t in lines]
+        line_h = int(size * line_spacing)
+        block_h = line_h * len(lines)
+        if max(widths) <= max_width and block_h <= max_height:
+            best = size
+            break
+    font = _font(best, bold=bold)
+    return font, int(best * line_spacing)
 
 
 def main() -> None:
-    polys = _load_us_polygons()
+    topo = json.loads(TOPO.read_text())
+    polys = polygons_from_topology(topo)
+    conus = _largest_polygon(polys)
 
-    img = Image.new("RGBA", (SIZE, SIZE), WHITE)
+    img = Image.new("RGBA", (WIDTH, HEIGHT), BG)
     draw = ImageDraw.Draw(img)
 
-    # The US silhouette lives in the middle band. Leave top/bottom margins for text.
-    map_box = (MARGIN, int(SIZE * 0.22), SIZE - MARGIN, int(SIZE * 0.82))
-    placed = _scale_polygons_to_box(polys, map_box)
+    # --- Left text block -----------------------------------------------
+    text_area_x0 = MARGIN
+    text_area_x1 = int(WIDTH * TEXT_FRAC) - MARGIN // 2
+    text_area_w  = text_area_x1 - text_area_x0
+    text_area_h  = HEIGHT - 2 * MARGIN
 
-    # Fill the silhouette in dark red. Outline slightly darker for definition.
+    font, line_h = _fit_text_to_width(LINES, text_area_w, text_area_h, bold=True)
+
+    block_h = line_h * len(LINES)
+    y = (HEIGHT - block_h) // 2
+    for i, text in enumerate(LINES):
+        color = HIGHLIGHT if i == RED_LINE_INDEX else TEXT_COLOR
+        w = draw.textlength(text, font=font)
+        # Right-align the text block so it sits flush against the map side.
+        x = text_area_x1 - w
+        draw.text((x, y + i * line_h), text, font=font, fill=color)
+
+    # --- Right silhouette (lower 48) -----------------------------------
+    map_x0 = int(WIDTH * TEXT_FRAC) + MARGIN // 2
+    map_box = (map_x0, MARGIN, WIDTH - MARGIN, HEIGHT - MARGIN)
+    placed = scale_polygons_to_box([conus], map_box)
     for poly in placed:
         if len(poly) >= 3:
             draw.polygon(poly, fill=RED, outline=RED_DARK)
 
-    # Top arc: "AMERICAN CONSOLIDATED NATURAL RESOURCES, INC."
-    center = (SIZE / 2, SIZE / 2)
-    radius_top = SIZE / 2 - 70
-    top_font = _font(36, bold=True)
-    _draw_curved_text(
-        draw, WORDMARK_TOP, center, radius_top,
-        start_angle_deg=150, end_angle_deg=30,
-        font=top_font, fill=RED_DARK, img=img,
-    )
-
-    # Bottom flat: "ACNR INTELLIGENCE"
-    bottom_font = _font(62, bold=True)
-    bw = draw.textlength(WORDMARK_BOTTOM, font=bottom_font)
-    draw.text(
-        ((SIZE - bw) / 2, int(SIZE * 0.86)),
-        WORDMARK_BOTTOM, font=bottom_font, fill=RED_DARK,
-    )
-
     img.save(OUT, format="PNG")
-    print(f"wrote {OUT} ({SIZE}x{SIZE})")
+    print(f"wrote {OUT} ({WIDTH}x{HEIGHT}, lower-48 only)")
 
 
 if __name__ == "__main__":

@@ -60,6 +60,18 @@ jobs:
           # manually without opening the UI.
           Copy-Item "options.json" -Destination $stage -Force
 
+          # Ship the ACNR wide-logo banner used by the popup header
+          # (CustomPopupWindow loads it from os.path.dirname(sys.argv[0])).
+          if (Test-Path "acnr_logo.png") {
+              Copy-Item "acnr_logo.png" -Destination $stage -Force
+          }
+
+          # Ship the icons/ directory. The popup / buttons load icons from
+          # os.path.dirname(sys.argv[0])/icons/*.png at runtime; if the dir
+          # isn't there the buttons render without their glyphs. Also gives
+          # the tray / window icon something to fall back to.
+          Copy-Item "icons" -Destination $stage -Recurse -Force
+
           # Bundle the README so users have a readme in the zip
           if (Test-Path "..\outlook-ollama\README.md") {
               Copy-Item "..\outlook-ollama\README.md" -Destination "$stage\README.md" -Force
@@ -68,7 +80,7 @@ jobs:
           # Zip
           Compress-Archive -Path "$stage\*" -DestinationPath "dist\ACNR-Intelligence-Windows.zip" -Force
           Write-Host "Zip contents:"
-          Get-ChildItem $stage -Recurse | Select-Object Name, Length | Format-Table
+          Get-ChildItem $stage -Recurse | Select-Object FullName, Length | Format-Table
           Get-Item "dist\ACNR-Intelligence-Windows.zip" | Format-List Name, Length
 
       - name: Upload build artifact (always - downloadable from Actions tab)

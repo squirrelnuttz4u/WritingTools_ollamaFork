@@ -370,7 +370,21 @@ class CustomPopupWindow(QtWidgets.QWidget):
         # Margin Control
         content_layout.setContentsMargins(10, 4, 10, 10)
         content_layout.setSpacing(10)
-        
+
+        # ACNR branding banner - shown above the top bar in both button mode
+        # and chat mode. Uses the wide wordmark logo shipped next to the exe.
+        logo_path = os.path.join(os.path.dirname(sys.argv[0]), 'acnr_logo.png')
+        if os.path.exists(logo_path):
+            logo_label = QtWidgets.QLabel()
+            logo_label.setPixmap(
+                QtGui.QPixmap(logo_path).scaledToHeight(
+                    48, Qt.TransformationMode.SmoothTransformation
+                )
+            )
+            logo_label.setAlignment(Qt.AlignCenter)
+            logo_label.setStyleSheet("background: transparent;")
+            content_layout.addWidget(logo_label, 0, Qt.AlignHCenter)
+
         # TOP BAR LAYOUT & STYLE
         top_bar = QHBoxLayout()
         top_bar.setContentsMargins(0, 0, 0, 0)
