@@ -14,7 +14,7 @@ import ui.CustomPopupWindow
 import ui.OnboardingWindow
 import ui.ResponseWindow
 import ui.SettingsWindow
-from aiprovider import GeminiProvider, OllamaProvider, OpenAICompatibleProvider, obfuscate_api_key
+from aiprovider import OllamaProvider
 from pynput import keyboard as pykeyboard
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtCore import QLocale, Signal, Slot
@@ -46,8 +46,8 @@ class WritingToolApp(QtWidgets.QApplication):
         self.config_path = None
         self.load_config()
 
-        # Check if config migration is needed for v8 (Gemini model update)
-        self._migrate_config_for_v8()
+        # (Upstream v8 config migration was Gemini-specific and is not
+        # relevant to ACNR Intelligence, which is Ollama-only.)
 
         self.options = None
         self.options_path = None
@@ -72,7 +72,7 @@ class WritingToolApp(QtWidgets.QApplication):
         self.setup_ctrl_c_listener()
 
         # Setup available AI providers
-        self.providers = [GeminiProvider(self), OpenAICompatibleProvider(self), OllamaProvider(self)]
+        self.providers = [OllamaProvider(self)]
 
         if not self.config:
             logging.debug('No config found, showing onboarding')
@@ -80,8 +80,8 @@ class WritingToolApp(QtWidgets.QApplication):
         else:
             logging.debug('Config found, setting up hotkey and tray icon')
 
-            # Initialize the current provider, defaulting to Gemini
-            provider_name = self.config.get('provider', 'Gemini')
+            # Initialize the current provider (ACNR Intelligence is Ollama-only)
+            provider_name = self.config.get('provider', 'Ollama (For Experts)')
 
             self.current_provider = next((provider for provider in self.providers if provider.provider_name == provider_name), None)
             if not self.current_provider:
@@ -171,67 +171,6 @@ class WritingToolApp(QtWidgets.QApplication):
         else:
             logging.debug('Config file not found')
             self.config = None
-
-    def _migrate_config_for_v8(self):
-        """
-        Migrate config for v8 update:
-        1. Google removed Gemini 2.0 models from free API, so update to Gemma 3 27B
-        2. Obfuscate plaintext Gemini API keys for security (defeats Ctrl+F scanning)
-
-        This migration:
-        1. Checks if 'is_config_file_updated_for_v8' flag exists and is True
-        2. If not, updates the Gemini model and obfuscates the API key
-        3. Shows a popup telling the user to restart Writing Tools
-        """
-        # Skip if no config exists (new user going through onboarding)
-        if not self.config:
-            logging.debug('No config to migrate (new user)')
-            return
-
-        # Check if already migrated
-        if self.config.get('is_config_file_updated_for_v8', False):
-            logging.debug('Config already migrated for v8, skipping')
-            return
-
-        logging.info('Migrating config for v8 (Gemini model + API key obfuscation)...')
-
-        # Update the Gemini provider's model name and obfuscate API key
-        config_changed = False
-        if 'providers' in self.config and 'Gemini (Recommended)' in self.config['providers']:
-            gemini_config = self.config['providers']['Gemini (Recommended)']
-
-            # Update to the new Gemma model (works with unlimited usage on free API)
-            old_model = gemini_config.get('model_name', '')
-            gemini_config['model_name'] = 'gemma-3-27b-it'
-            logging.info(f'Updated Gemini model from "{old_model}" to "gemma-3-27b-it"')
-
-            # Obfuscate the API key if it exists and isn't already obfuscated
-            if 'api_key' in gemini_config and gemini_config['api_key']:
-                old_key = gemini_config['api_key']
-                gemini_config['api_key'] = obfuscate_api_key(old_key)
-                if old_key != gemini_config['api_key']:
-                    logging.info('Obfuscated Gemini API key')
-
-            config_changed = True
-
-        # Set the migration flag
-        self.config['is_config_file_updated_for_v8'] = True
-
-        # Save the updated config
-        self.save_config(self.config)
-        logging.info('Config migration for v8 complete')
-
-        # Only show restart message if we actually changed something
-        if config_changed:
-            # Show popup telling user to restart (use QMessageBox directly since signals aren't connected yet)
-            QMessageBox.information(
-                None,
-                'ACNR Intelligence Updated',
-                'ACNR Intelligence has just completed an internal update (your config.json has been updated).\n\n'
-                'Please restart ACNR Intelligence.'
-            )
-            # Exit the app so user can restart
-            sys.exit(0)
 
     def load_options(self):
         """
@@ -527,10 +466,7 @@ class WritingToolApp(QtWidgets.QApplication):
             except Exception as e:
                 logging.error(f'An error occurred: {e}', exc_info=True)
 
-                if "Resource has been exhausted" in str(e):
-                    self.show_message_signal.emit('Error - Rate Limit Hit', 'Whoops! You\'ve hit the per-minute rate limit of the Gemini API. Please try again in a few moments.\n\nIf this happens often, simply switch to a Gemini model with a higher usage limit in Settings.')
-                else:
-                    self.show_message_signal.emit('Error', f'An error occurred: {e}')
+                self.show_message_signal.emit('Error', f'An error occurred: {e}')
 
     @Slot(str, str)
     def show_message_box(self, title, message):
@@ -698,16 +634,8 @@ class WritingToolApp(QtWidgets.QApplication):
     - Properly formats roles (user/assistant) for each message
     - Preserves conversation context across multiple questions (until the Window is closed)
 
-    2. Provider-Specific Handling:
-    a) Gemini:
-        - Converts internal roles to Gemini's user/model format
-        - Uses chat sessions with proper history formatting
-        - Maintains context through chat.send_message()
-    
-    b) OpenAI-compatible:
-        - Uses standard OpenAI message array format
-        - Includes system instruction and full conversation history
-        - Properly maps internal roles to OpenAI roles
+    2. Provider:
+        Ollama (For Experts) - messages array with system prompt + history.
 
     3. Flow:
     a) User asks follow-up question
@@ -757,59 +685,19 @@ class WritingToolApp(QtWidgets.QApplication):
                 
                 logging.debug('Sending request to AI provider')
                 
-                # Format conversation differently based on provider
-                if isinstance(self.current_provider, GeminiProvider):
-                    # For Gemini, use the proper history format with roles
-                    chat_messages = []
-                    
-                    # Convert our roles to Gemini's expected roles
-                    for msg in history:
-                        gemini_role = "model" if msg["role"] == "assistant" else "user"
-                        chat_messages.append({
-                            "role": gemini_role,
-                            "parts": msg["content"]
-                        })
-                    
-                    # Start chat with history
-                    chat = self.current_provider.model.start_chat(history=chat_messages)
-                    
-                    # Get response using the chat
-                    response = chat.send_message(question)
-                    response_text = response.text
+                # Ollama: prepare messages with system instruction and history
+                messages = [{"role": "system", "content": system_instruction}]
+                for msg in history:
+                    messages.append({
+                        "role": msg["role"],
+                        "content": msg["content"]
+                    })
 
-                elif isinstance(self.current_provider, OllamaProvider):  #
-                    # For Ollama, prepare messages with system instruction and history
-                    messages = [{"role": "system", "content": system_instruction}]
-
-                    for msg in history:
-                        messages.append({
-                            "role": msg["role"],
-                            "content": msg["content"]
-                        })
-
-                    # Get response from Ollama
-                    response_text = self.current_provider.get_response(
-                        system_instruction,
-                        messages,
-                        return_response=True
-                    )
-
-                else:
-                    # For OpenAI/compatible providers, prepare messages array, add system message
-                    messages = [{"role": "system", "content": system_instruction}]
-
-                    # Add history messages (including latest question)
-                    for msg in history:
-                        # Convert 'assistant' role to 'assistant' for OpenAI
-                        role = "assistant" if msg["role"] == "assistant" else "user"
-                        messages.append({"role": role, "content": msg["content"]})
-                    
-                    # Get response by passing the full messages array
-                    response_text = self.current_provider.get_response(
-                        system_instruction,
-                        messages,  # Pass messages array directly
-                        return_response=True
-                    )
+                response_text = self.current_provider.get_response(
+                    system_instruction,
+                    messages,
+                    return_response=True
+                )
 
                 logging.debug(f'Got response of length: {len(response_text)}')
                 

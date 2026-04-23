@@ -51,9 +51,7 @@ class OnboardingWindow(QtWidgets.QWidget):
 
         • {_('Chat with AI anytime by invoking ACNR Intelligence without selecting any text.')}
 
-        • {_('Supports an extensive range of AI models:')}
-            - {_('Gemini 2.0')}
-            - {_('ANY OpenAI Compatible API — including local LLMs!')}
+        • {_("Runs against ACNR's internal Ollama server - your text never leaves the corporate network.")}
         """
         features_label = QtWidgets.QLabel(features_text)
         features_label.setStyleSheet(f"font-size: 16px; color: {'#ffffff' if colorMode == 'dark' else '#333333'};")

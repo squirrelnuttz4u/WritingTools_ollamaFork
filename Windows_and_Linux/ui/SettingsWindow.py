@@ -364,7 +364,7 @@ class SettingsWindow(QtWidgets.QWidget):
 
         self.app.providers[self.provider_dropdown.currentIndex()].save_config()
 
-        provider_name = self.app.config.get('provider', 'Gemini')
+        provider_name = self.app.config.get('provider', self.app.providers[0].provider_name)
         self.app.current_provider = next(
             (provider for provider in self.app.providers if provider.provider_name == provider_name),
             self.app.providers[0]
