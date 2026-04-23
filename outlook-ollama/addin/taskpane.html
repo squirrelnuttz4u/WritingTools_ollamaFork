@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Rewriter</title>
+  <!-- Office.js MUST be loaded from Microsoft's CDN; do not self-host. -->
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <link rel="stylesheet" href="./taskpane.css" />
+</head>
+<body>
+  <header>
+    <h1>AI Rewriter</h1>
+    <p class="subtitle">Powered by your internal Ollama LLM &middot; Nothing leaves the corporate network</p>
+  </header>
+
+  <section class="controls">
+    <label for="tone">Tone</label>
+    <select id="tone">
+      <option value="professional">Professional</option>
+      <option value="friendly">Friendly</option>
+      <option value="concise">Concise</option>
+      <option value="formal">Formal</option>
+      <option value="assertive">Assertive</option>
+      <option value="apologetic">Apologetic</option>
+      <option value="grammar">Grammar &amp; spelling only</option>
+    </select>
+
+    <label for="model">Model</label>
+    <select id="model">
+      <option value="">Default (server-selected)</option>
+    </select>
+
+    <label for="instructions">Extra instructions (optional)</label>
+    <textarea id="instructions" rows="2" placeholder="e.g. keep it under 80 words, keep the bullet list"></textarea>
+  </section>
+
+  <section id="composeActions" class="actions" hidden>
+    <button id="btnRewrite" class="btn primary" type="button">Rewrite draft</button>
+    <button id="btnInsert" class="btn" type="button" disabled>Insert into email</button>
+  </section>
+
+  <section id="readActions" class="actions" hidden>
+    <button id="btnSummarize" class="btn primary" type="button">Summarize email</button>
+    <button id="btnCopy" class="btn" type="button" disabled>Copy summary</button>
+  </section>
+
+  <div id="status" class="status" aria-live="polite"></div>
+  <pre id="output" class="output"></pre>
+
+  <footer>
+    <span id="endpointLabel"></span>
+  </footer>
+
+  <script src="./taskpane.js"></script>
+</body>
+</html>
