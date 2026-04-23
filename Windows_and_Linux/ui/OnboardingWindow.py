@@ -23,7 +23,7 @@ class OnboardingWindow(QtWidgets.QWidget):
 
     def init_ui(self):
         logging.debug('Initializing onboarding UI')
-        self.setWindowTitle(_('Welcome to Writing Tools'))
+        self.setWindowTitle(_('Welcome to ACNR Intelligence'))
         self.resize(600, 500)
 
         UIUtils.setup_window_and_layout(self)
@@ -39,17 +39,17 @@ class OnboardingWindow(QtWidgets.QWidget):
     def show_welcome_screen(self):
         UIUtils.clear_layout(self.content_layout)
 
-        title_label = QtWidgets.QLabel(_("Welcome to Writing Tools")+"!")
+        title_label = QtWidgets.QLabel(_("Welcome to ACNR Intelligence")+"!")
         title_label.setStyleSheet(f"font-size: 24px; font-weight: bold; color: {'#ffffff' if colorMode == 'dark' else '#333333'};")
         self.content_layout.addWidget(title_label, alignment=QtCore.Qt.AlignmentFlag.AlignCenter)
 
         features_text = f"""
-        • {_('Instantly optimize your writing with AI by selecting your text and invoking Writing Tools with "ctrl+space", anywhere.')} 
+        • {_('Instantly optimize your writing with AI by selecting your text and invoking ACNR Intelligence with "ctrl+space", anywhere.')}
 
         • {_('Get a summary you can chat with of articles, YouTube videos, or documents by select all text with "ctrl+a"')}
-          {_('(or select the YouTube transcript from its description), invoking Writing Tools, and choosing Summary.')}
+          {_('(or select the YouTube transcript from its description), invoking ACNR Intelligence, and choosing Summary.')}
 
-        • {_('Chat with AI anytime by invoking Writing Tools without selecting any text.')}
+        • {_('Chat with AI anytime by invoking ACNR Intelligence without selecting any text.')}
 
         • {_('Supports an extensive range of AI models:')}
             - {_('Gemini 2.0')}

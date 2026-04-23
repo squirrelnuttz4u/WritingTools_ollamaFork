@@ -9,7 +9,7 @@ def run_pyinstaller_build():
         "--onefile",
         "--windowed",
         "--icon=icons/app_icon.ico",
-        "--name=Writing Tools",
+        "--name=ACNR Intelligence",
         "--clean",
         "--noconfirm",
         # Exclude unnecessary modules

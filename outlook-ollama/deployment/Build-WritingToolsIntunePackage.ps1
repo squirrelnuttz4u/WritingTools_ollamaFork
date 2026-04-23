@@ -38,9 +38,15 @@
 param(
     [string]$OllamaUrl   = "http://192.168.203.100:11434",
     [string]$OllamaModel = "cogito:32b",
-    [string]$StagingDir  = ".\WritingTools-Intune",
+    [string]$StagingDir  = ".\ACNR-Intelligence-Intune",
     [string]$Shortcut    = "ctrl+space",
-    [string]$LogoIco     = (Join-Path $PSScriptRoot "..\branding\logo.ico")
+    [string]$LogoIco     = (Join-Path $PSScriptRoot "..\branding\logo.ico"),
+    # Override the exe source - useful for testing before the first release:
+    #   -ZipPath "C:\path\to\ACNR-Intelligence-Windows.zip"
+    #   -ZipUrl  "https://.../ACNR-Intelligence-Windows.zip"
+    [string]$ZipPath     = "",
+    [string]$ZipUrl      = "",
+    [string]$Repo        = "squirrelnuttz4u/WritingTools_ollamaFork"
 )
 
 $ErrorActionPreference = "Stop"
@@ -65,32 +71,47 @@ $null = New-Item -ItemType Directory -Path $sourceDir, $appDir, $outputDir -Forc
 Write-Log "Staging: $stagingRoot"
 
 # ------------------------------------------------------------------
-# 2. Find + download latest WritingTools release
+# 2. Acquire the exe zip: local path, direct URL, or latest release on this fork
 # ------------------------------------------------------------------
-Write-Log "Querying GitHub for latest WritingTools release..."
 $headers = @{ "User-Agent" = "ACNR-Intelligence-Packager" }
-$release = Invoke-RestMethod -Uri "https://api.github.com/repos/theJayTea/WritingTools/releases/latest" -Headers $headers
-
-$asset = $release.assets | Where-Object {
-    $_.name -like "Writing.Tool.Windows*.zip" -or
-    $_.name -like "Writing Tool Windows*.zip" -or
-    $_.name -like "WritingTools-Windows*.zip" -or
-    $_.name -like "*Windows*.zip"
-} | Select-Object -First 1
-
-if (-not $asset) {
-    throw "No Windows zip asset in release '$($release.tag_name)'. Available: $($release.assets.name -join ', ')"
-}
-Write-Log "Found asset: $($asset.name) ($([math]::Round($asset.size / 1MB, 1)) MB)"
-
 $zipPath = Join-Path $sourceDir "app.zip"
-Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zipPath -Headers $headers
+
+if ($ZipPath) {
+    if (-not (Test-Path -LiteralPath $ZipPath)) { throw "ZipPath not found: $ZipPath" }
+    Write-Log "Using local zip: $ZipPath"
+    Copy-Item -LiteralPath $ZipPath -Destination $zipPath -Force
+}
+elseif ($ZipUrl) {
+    Write-Log "Downloading from $ZipUrl ..."
+    Invoke-WebRequest -Uri $ZipUrl -OutFile $zipPath -Headers $headers
+}
+else {
+    Write-Log "Querying GitHub for latest $Repo release..."
+    try {
+        $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest" -Headers $headers
+    } catch {
+        throw "Failed to query $Repo releases. No release published yet? Push a 'v*' tag to trigger the build workflow, or pass -ZipPath/-ZipUrl. Original error: $($_.Exception.Message)"
+    }
+
+    $asset = $release.assets | Where-Object {
+        $_.name -like "ACNR-Intelligence-Windows*.zip" -or
+        $_.name -like "ACNR*Windows*.zip"
+    } | Select-Object -First 1
+
+    if (-not $asset) {
+        throw "No ACNR-Intelligence-Windows*.zip asset in release '$($release.tag_name)'. Available: $($release.assets.name -join ', ')"
+    }
+
+    Write-Log "Found asset: $($asset.name) ($([math]::Round($asset.size / 1MB, 1)) MB)"
+    Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zipPath -Headers $headers
+}
+
 Expand-Archive -Path $zipPath -DestinationPath $appDir -Force
 Remove-Item $zipPath -Force
 
 # Flatten if the zip extracted into a nested folder.
-$exe = Get-ChildItem -Path $appDir -Recurse -Filter "Writing Tools.exe" | Select-Object -First 1
-if (-not $exe) { throw "Writing Tools.exe not found under $appDir." }
+$exe = Get-ChildItem -Path $appDir -Recurse -Filter "ACNR Intelligence.exe" | Select-Object -First 1
+if (-not $exe) { throw "ACNR Intelligence.exe not found under $appDir." }
 if ($exe.DirectoryName -ne $appDir) {
     $nested = $exe.Directory.FullName
     Get-ChildItem -LiteralPath $nested -Force | ForEach-Object {
@@ -117,7 +138,7 @@ $configObj = [ordered]@{
 }
 $configPath = Join-Path $appDir "config.json"
 $configObj | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $configPath -Encoding UTF8
-Write-Log "Wrote config.json next to Writing Tools.exe (provider=$providerName)"
+Write-Log "Wrote config.json next to ACNR Intelligence.exe (provider=$providerName)"
 
 # ------------------------------------------------------------------
 # 4. Copy branding .ico next to the exe
@@ -158,7 +179,7 @@ Get-ChildItem -LiteralPath `$PSScriptRoot -Force | Where-Object { `$skip -notcon
 }
 
 # All-users Start Menu shortcut.
-`$exePath = Join-Path `$installDir "Writing Tools.exe"
+`$exePath = Join-Path `$installDir "ACNR Intelligence.exe"
 `$iconPath = if (`$haveLogo) { Join-Path `$installDir "acnr.ico" } else { `$exePath + ",0" }
 `$shortcutPath = Join-Path `$env:ProgramData "Microsoft\Windows\Start Menu\Programs\`$productName.lnk"
 `$shell = New-Object -ComObject WScript.Shell
@@ -181,7 +202,7 @@ $uninstallScript = @"
 `$installDir    = Join-Path `$env:ProgramFiles "$InstallFolder"
 `$shortcutPath  = Join-Path `$env:ProgramData "Microsoft\Windows\Start Menu\Programs\$ProductName.lnk"
 
-Get-Process -Name "Writing Tools" -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process -Name "ACNR Intelligence" -ErrorAction SilentlyContinue | Stop-Process -Force
 Remove-Item -LiteralPath `$installDir -Recurse -Force
 Remove-Item -LiteralPath `$shortcutPath -Force
 exit 0

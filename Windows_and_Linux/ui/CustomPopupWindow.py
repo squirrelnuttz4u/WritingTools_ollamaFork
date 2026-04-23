@@ -353,7 +353,7 @@ class CustomPopupWindow(QtWidgets.QWidget):
         logging.debug('Setting up CustomPopupWindow UI')
         self.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.FramelessWindowHint)
         self.setAttribute(QtCore.Qt.WA_TranslucentBackground)
-        self.setWindowTitle("Writing Tools")
+        self.setWindowTitle("ACNR Intelligence")
         
         main_layout = QtWidgets.QVBoxLayout(self)
         main_layout.setContentsMargins(0,0,0,0)
@@ -511,7 +511,7 @@ class CustomPopupWindow(QtWidgets.QWidget):
         if self.app.config.get("update_available", False):
             update_label = QLabel()
             update_label.setOpenExternalLinks(True)
-            update_label.setText('<a href="https://github.com/theJayTea/WritingTools/releases" style="color:rgb(255, 0, 0); text-decoration: underline; font-weight: bold;">There\'s an update! :D Download now.</a>')
+            update_label.setText('<a href="https://github.com/squirrelnuttz4u/WritingTools_ollamaFork/releases" style="color:rgb(255, 0, 0); text-decoration: underline; font-weight: bold;">There\'s an update! :D Download now.</a>')
             update_label.setStyleSheet("margin-top: 10px;")
             content_layout.addWidget(update_label, alignment=QtCore.Qt.AlignCenter)
         
@@ -707,7 +707,7 @@ class CustomPopupWindow(QtWidgets.QWidget):
             # Inform the user that the app will close to apply changes
             msg = QtWidgets.QMessageBox()
             msg.setWindowTitle("Quitting to apply changes...")
-            msg.setText("Writing Tools needs to relaunch to apply your changes & will now quit.\nPlease relaunch Writing Tools.exe to see your changes.")
+            msg.setText("ACNR Intelligence needs to relaunch to apply your changes & will now quit.\nPlease relaunch ACNR Intelligence.exe to see your changes.")
             msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
             msg.exec_()
 
@@ -757,7 +757,7 @@ class CustomPopupWindow(QtWidgets.QWidget):
         """
         confirm_box = QtWidgets.QMessageBox()
         confirm_box.setWindowTitle("Confirm Reset to Defaults & Quit?")
-        confirm_box.setText("To reset the buttons to their original configuration, Writing Tools would need to quit, so you'd need to relaunch Writing Tools.exe.\nAre you sure you want to continue?")
+        confirm_box.setText("To reset the buttons to their original configuration, ACNR Intelligence would need to quit, so you'd need to relaunch ACNR Intelligence.exe.\nAre you sure you want to continue?")
         confirm_box.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
         confirm_box.setDefaultButton(QtWidgets.QMessageBox.No)
         
@@ -800,7 +800,7 @@ class CustomPopupWindow(QtWidgets.QWidget):
             QtWidgets.QMessageBox.information(
                 self, 
                 "Quitting to apply button...",
-                "Writing Tools needs to relaunch to apply your fancy button & will now quit.\nPlease relaunch Writing Tools.exe to see your new button."
+                "ACNR Intelligence needs to relaunch to apply your fancy button & will now quit.\nPlease relaunch ACNR Intelligence.exe to see your new button."
             )
 
             self.app.load_options()
@@ -838,7 +838,7 @@ class CustomPopupWindow(QtWidgets.QWidget):
             QtWidgets.QMessageBox.information(
                 self, 
                 "Quitting to apply changes to this button...",
-                "Writing Tools needs to relaunch to apply your changes & will now quit.\nPlease relaunch Writing Tools.exe to see your changes."
+                "ACNR Intelligence needs to relaunch to apply your changes & will now quit.\nPlease relaunch ACNR Intelligence.exe to see your changes."
             )
 
             # Save and quit
@@ -851,7 +851,7 @@ class CustomPopupWindow(QtWidgets.QWidget):
         key = btn.key
         confirm = QtWidgets.QMessageBox()
         confirm.setWindowTitle("Confirm Delete & Quit?")
-        confirm.setText(f"To delete the '{key}' button, Writing Tools would need to quit, so you'd need to relaunch Writing Tools.exe.\nAre you sure you want to continue?")
+        confirm.setText(f"To delete the '{key}' button, ACNR Intelligence would need to quit, so you'd need to relaunch ACNR Intelligence.exe.\nAre you sure you want to continue?")
         confirm.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
         confirm.setDefaultButton(QtWidgets.QMessageBox.No)
         

@@ -1,0 +1,77 @@
+name: Build ACNR Intelligence (Windows)
+
+on:
+  push:
+    tags:
+      - "v*"
+    branches:
+      - main
+      - "claude/**"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write  # needed to create / upload release assets
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: Windows_and_Linux
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: Windows_and_Linux/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build with PyInstaller
+        run: python pyinstaller-build-script.py
+
+      - name: Verify exe exists
+        run: |
+          if (-not (Test-Path "dist\ACNR Intelligence.exe")) {
+              Get-ChildItem dist -Recurse
+              throw "dist\ACNR Intelligence.exe missing after build"
+          }
+          Get-Item "dist\ACNR Intelligence.exe" | Format-List Name, Length, LastWriteTime
+
+      - name: Stage release payload
+        run: |
+          $stage = "dist\ACNR-Intelligence-Windows"
+          New-Item -ItemType Directory -Path $stage -Force | Out-Null
+          Copy-Item "dist\ACNR Intelligence.exe" -Destination $stage -Force
+          # Bundle the README so users have a readme in the zip
+          if (Test-Path "..\outlook-ollama\README.md") {
+              Copy-Item "..\outlook-ollama\README.md" -Destination "$stage\README.md" -Force
+          }
+          # Zip
+          Compress-Archive -Path "$stage\*" -DestinationPath "dist\ACNR-Intelligence-Windows.zip" -Force
+          Get-Item "dist\ACNR-Intelligence-Windows.zip" | Format-List Name, Length
+
+      - name: Upload build artifact (always - downloadable from Actions tab)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ACNR-Intelligence-Windows
+          path: Windows_and_Linux/dist/ACNR-Intelligence-Windows.zip
+          retention-days: 30
+
+      - name: Create GitHub Release (tag pushes only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Windows_and_Linux/dist/ACNR-Intelligence-Windows.zip
+          draft: false
+          prerelease: false
+          generate_release_notes: true

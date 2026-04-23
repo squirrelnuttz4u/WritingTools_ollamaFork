@@ -40,6 +40,13 @@ param(
     [string]$InstallDir  = (Join-Path $env:LOCALAPPDATA "ACNRIntelligence"),
     [string]$Shortcut    = "ctrl+space",
     [string]$LogoIco     = (Join-Path $PSScriptRoot "..\branding\logo.ico"),
+    # Override sources - useful for testing before the first GitHub release:
+    #   -ZipPath "C:\path\to\ACNR-Intelligence-Windows.zip"  (local file)
+    #   -ZipUrl  "https://.../ACNR-Intelligence-Windows.zip" (direct download)
+    # Otherwise the installer fetches from this fork's latest release.
+    [string]$ZipPath     = "",
+    [string]$ZipUrl      = "",
+    [string]$Repo        = "squirrelnuttz4u/WritingTools_ollamaFork",
     [switch]$Force,
     [switch]$NoLaunch
 )
@@ -58,7 +65,7 @@ function Write-Log {
 # 1. Handle existing install
 # ------------------------------------------------------------------
 if (Test-Path -LiteralPath $InstallDir) {
-    $existingExe = Join-Path $InstallDir "Writing Tools.exe"
+    $existingExe = Join-Path $InstallDir "ACNR Intelligence.exe"
     if ((Test-Path -LiteralPath $existingExe) -and -not $Force) {
         Write-Host ""
         Write-Host "$ProductName already installed at: $InstallDir"
@@ -69,42 +76,58 @@ if (Test-Path -LiteralPath $InstallDir) {
         }
     }
     # Kill any running instance so files aren't locked.
-    Get-Process -Name "Writing Tools" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Get-Process -Name "ACNR Intelligence" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $InstallDir -Recurse -Force
 }
 $null = New-Item -ItemType Directory -Path $InstallDir -Force
 Write-Log "Install dir: $InstallDir"
 
 # ------------------------------------------------------------------
-# 2. Download latest release
+# 2. Acquire the zip: local path, direct URL, or latest release on this fork
 # ------------------------------------------------------------------
-Write-Log "Querying GitHub for latest WritingTools release..."
-$ghHeaders = @{ "User-Agent" = "WritingTools-Standalone-Installer" }
-$release = Invoke-RestMethod -Uri "https://api.github.com/repos/theJayTea/WritingTools/releases/latest" -Headers $ghHeaders
+$tempZip = Join-Path $env:TEMP ("acnr-intelligence-" + [guid]::NewGuid() + ".zip")
+$ghHeaders = @{ "User-Agent" = "ACNR-Intelligence-Installer" }
 
-$asset = $release.assets | Where-Object {
-    $_.name -like "Writing.Tool.Windows*.zip" -or
-    $_.name -like "Writing Tool Windows*.zip" -or
-    $_.name -like "WritingTools-Windows*.zip" -or
-    $_.name -like "*Windows*.zip"
-} | Select-Object -First 1
-
-if (-not $asset) {
-    throw "No Windows zip asset in release $($release.tag_name). Available: $($release.assets.name -join ', ')"
+if ($ZipPath) {
+    if (-not (Test-Path -LiteralPath $ZipPath)) {
+        throw "ZipPath not found: $ZipPath"
+    }
+    Write-Log "Using local zip: $ZipPath"
+    Copy-Item -LiteralPath $ZipPath -Destination $tempZip -Force
 }
+elseif ($ZipUrl) {
+    Write-Log "Downloading from $ZipUrl ..."
+    Invoke-WebRequest -Uri $ZipUrl -OutFile $tempZip -Headers $ghHeaders
+}
+else {
+    Write-Log "Querying GitHub for latest $Repo release..."
+    try {
+        $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest" -Headers $ghHeaders
+    } catch {
+        throw "Failed to query $Repo releases. No release published yet? Push a 'v*' tag to trigger the build workflow, or pass -ZipPath/-ZipUrl. Original error: $($_.Exception.Message)"
+    }
 
-$tempZip = Join-Path $env:TEMP ("writingtools-" + [guid]::NewGuid() + ".zip")
-Write-Log "Downloading $($asset.name) ($([math]::Round($asset.size / 1MB, 1)) MB)..."
-Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tempZip -Headers $ghHeaders
+    $asset = $release.assets | Where-Object {
+        $_.name -like "ACNR-Intelligence-Windows*.zip" -or
+        $_.name -like "ACNR*Windows*.zip"
+    } | Select-Object -First 1
+
+    if (-not $asset) {
+        throw "No ACNR-Intelligence-Windows*.zip asset in release '$($release.tag_name)'. Available: $($release.assets.name -join ', ')"
+    }
+
+    Write-Log "Downloading $($asset.name) ($([math]::Round($asset.size / 1MB, 1)) MB)..."
+    Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tempZip -Headers $ghHeaders
+}
 
 Write-Log "Extracting..."
 Expand-Archive -Path $tempZip -DestinationPath $InstallDir -Force
 Remove-Item -LiteralPath $tempZip -Force
 
-# Flatten a single nested folder (e.g. "Writing Tools/Writing Tools.exe").
-$exe = Get-ChildItem -LiteralPath $InstallDir -Recurse -Filter "Writing Tools.exe" | Select-Object -First 1
+# Flatten if the zip extracted into a nested folder.
+$exe = Get-ChildItem -LiteralPath $InstallDir -Recurse -Filter "ACNR Intelligence.exe" | Select-Object -First 1
 if (-not $exe) {
-    throw "Writing Tools.exe not found after extract."
+    throw "ACNR Intelligence.exe not found after extract. Zip contents: $((Get-ChildItem $InstallDir -Recurse | Select-Object -ExpandProperty FullName) -join ', ')"
 }
 if ($exe.DirectoryName -ne $InstallDir) {
     Write-Log "Flattening nested folder: $($exe.DirectoryName)"
@@ -159,7 +182,7 @@ $shortcutPaths = @(
 )
 
 $shell = New-Object -ComObject WScript.Shell
-$exePath = Join-Path $InstallDir "Writing Tools.exe"
+$exePath = Join-Path $InstallDir "ACNR Intelligence.exe"
 $iconLocation = if ($iconTarget) { $iconTarget } else { "$exePath,0" }
 foreach ($path in $shortcutPaths) {
     $link = $shell.CreateShortcut($path)

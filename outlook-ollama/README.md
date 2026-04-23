@@ -85,13 +85,54 @@ Optional parameters (all have sensible defaults):
     -NoLaunch       # install only, don't start it
 ```
 
-It downloads the latest WritingTools release, extracts to
-`%LOCALAPPDATA%\ACNRIntelligence`, writes `config.json` next to the exe
-pointing at your Ollama, bundles `branding/logo.ico` as the shortcut icon,
-creates Start Menu + Desktop shortcuts named **"ACNR Intelligence"**, probes
-`/api/tags` to confirm reachability, and launches the app. Press `Ctrl+Space`
-over any selected text to rewrite. Uninstall = delete
+It downloads the latest `ACNR-Intelligence-Windows.zip` from this fork's
+GitHub releases (built by `.github/workflows/build-acnr-intelligence.yml`),
+extracts to `%LOCALAPPDATA%\ACNRIntelligence`, writes `config.json` next to
+the exe pointing at your Ollama, bundles `branding/logo.ico` as the shortcut
+icon, creates Start Menu + Desktop shortcuts named **"ACNR Intelligence"**,
+probes `/api/tags` to confirm reachability, and launches the app. Press
+`Ctrl+Space` over any selected text to rewrite. Uninstall = delete
 `%LOCALAPPDATA%\ACNRIntelligence` and the two shortcuts.
+
+> **First run before any release is published?** Pass `-ZipPath` (local
+> build) or `-ZipUrl` (direct URL to the CI artifact zip) to skip the
+> release lookup. See the CI build section below.
+
+## Building the ACNR Intelligence.exe (CI)
+
+The rebranded desktop app is built by
+`.github/workflows/build-acnr-intelligence.yml`. Triggers:
+
+| Trigger | What happens |
+| --- | --- |
+| Push a tag `v*` (e.g. `git tag v1.0.0 && git push origin v1.0.0`) | Windows build + **GitHub Release** with `ACNR-Intelligence-Windows.zip` attached |
+| Push to `main` or `claude/**` | Windows build uploaded as an **Actions artifact** (30-day retention, downloadable from the Actions tab, no release created) |
+| Manual `workflow_dispatch` from the Actions UI | Same as a branch push |
+
+**First-time setup:** push this branch (or merge to main), wait for the
+Actions run to finish, grab the artifact from Actions → latest run →
+**ACNR-Intelligence-Windows**. You can feed that zip to either installer
+with `-ZipPath`:
+
+```powershell
+.\Install-WritingToolsStandalone.ps1 -ZipPath "C:\Downloads\ACNR-Intelligence-Windows.zip"
+```
+
+When you're ready to cut a "real" release, push a tag:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+That tag triggers a release build; once it's green, the installers with no
+override arguments will pick up the new `ACNR-Intelligence-Windows.zip`
+from `https://github.com/squirrelnuttz4u/WritingTools_ollamaFork/releases/latest`.
+
+What the build actually does: runs `Windows_and_Linux/pyinstaller-build-script.py`
+on `windows-latest`, which produces `dist\ACNR Intelligence.exe` embedding
+the ACNR mark icon; the workflow then zips it together with
+`outlook-ollama/README.md`.
 
 ## Path A (managed rollout) - ACNR Intelligence via Intune
 
@@ -106,11 +147,13 @@ cd outlook-ollama\deployment
     -OllamaModel "cogito:32b"
 ```
 
-The script downloads the latest WritingTools release, writes a correct
-`config.json` (native Ollama provider, nested shape, placed next to the exe
-where the app actually reads it), bundles `branding/logo.ico` as the Start
-Menu icon, and emits a `.intunewin` under `WritingTools-Intune\output\`. App
-name in Start Menu / Programs & Features: **ACNR Intelligence**.
+The script downloads the latest `ACNR-Intelligence-Windows.zip` from this
+fork's GitHub releases, writes a correct `config.json` (native Ollama
+provider, nested shape, placed next to the exe where the app actually reads
+it), bundles `branding/logo.ico` as the Start Menu icon, and emits a
+`.intunewin` under `ACNR-Intelligence-Intune\output\`. App name in Start
+Menu / Programs & Features: **ACNR Intelligence**. Also supports
+`-ZipPath` / `-ZipUrl` for offline or pre-release builds.
 
 In Intune:
 

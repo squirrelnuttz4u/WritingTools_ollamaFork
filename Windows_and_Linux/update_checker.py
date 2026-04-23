@@ -5,8 +5,8 @@ from urllib.error import HTTPError
 from urllib.request import URLError, urlopen
 
 CURRENT_VERSION = 8
-UPDATE_CHECK_URL = "https://raw.githubusercontent.com/theJayTea/WritingTools/main/Windows_and_Linux/Latest_Version_for_Update_Check.txt"
-UPDATE_DOWNLOAD_URL = "https://github.com/theJayTea/WritingTools/releases"
+UPDATE_CHECK_URL = "https://raw.githubusercontent.com/squirrelnuttz4u/WritingTools_ollamaFork/main/Windows_and_Linux/Latest_Version_for_Update_Check.txt"
+UPDATE_DOWNLOAD_URL = "https://github.com/squirrelnuttz4u/WritingTools_ollamaFork/releases"
 
 class UpdateChecker:
     def __init__(self, app):

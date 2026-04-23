@@ -41,19 +41,18 @@ class AboutWindow(QtWidgets.QWidget):
         content_layout.setContentsMargins(30, 30, 30, 30)
         content_layout.setSpacing(20)
 
-        title_label = QtWidgets.QLabel(_("About Writing Tools"))
+        title_label = QtWidgets.QLabel(_("About ACNR Intelligence"))
         title_label.setStyleSheet(f"font-size: 24px; font-weight: bold; color: {'#ffffff' if colorMode == 'dark' else '#333333'};")
         content_layout.addWidget(title_label, alignment=QtCore.Qt.AlignmentFlag.AlignCenter)
 
         about_text = "<p style='text-align: center;'>" + \
-                _("Writing Tools is a free & lightweight tool that helps you improve your writing with AI, similar to Apple's new Apple Intelligence feature. It works with an extensive range of AI LLMs, both online and locally run.") + \
+                _("ACNR Intelligence is an internal AI writing assistant for American Consolidated Natural Resources, Inc. It runs against ACNR's on-premise Ollama server so nothing you type leaves the corporate network.") + \
                 """
                      <br>
                 </p>
                 <p style='text-align: center;'>""" + \
-                "<b>" + _("Created with care by Jesai, a high school student.") +"</b><br><br>" + \
-                _("Feel free to check out my other AI app") + ", <a href=\"https://play.google.com/store/apps/details?id=com.jesai.blissai\"><b>Bliss AI</b></a>. " + _("It's a novel AI tutor that's free on the Google Play Store :)") + "<br><br>" + \
-                "<b>" + _("Contact me") +":</b> jesaitarun@gmail.com<br><br>" + \
+                "<b>" + _("Built on the open-source Writing Tools project by Jesai Tarun.") + "</b><br>" + \
+                _("Source:") + " <a href=\"https://github.com/theJayTea/WritingTools\">github.com/theJayTea/WritingTools</a><br><br>" + \
                 """</p>
                 <p style='text-align: center;'>
                 <b>⭐ """ + \
@@ -115,7 +114,7 @@ class AboutWindow(QtWidgets.QWidget):
         """
         Open the GitHub releases page to check for updates.
         """
-        webbrowser.open("https://github.com/theJayTea/WritingTools/releases")
+        webbrowser.open("https://github.com/squirrelnuttz4u/WritingTools_ollamaFork/releases")
 
     def original_app(self):
         """

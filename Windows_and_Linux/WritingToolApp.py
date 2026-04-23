@@ -226,9 +226,9 @@ class WritingToolApp(QtWidgets.QApplication):
             # Show popup telling user to restart (use QMessageBox directly since signals aren't connected yet)
             QMessageBox.information(
                 None,
-                'Writing Tools Updated',
-                'Writing Tools has just completed an internal update (your config.json has been updated).\n\n'
-                'Please restart Writing Tools.'
+                'ACNR Intelligence Updated',
+                'ACNR Intelligence has just completed an internal update (your config.json has been updated).\n\n'
+                'Please restart ACNR Intelligence.'
             )
             # Exit the app so user can restart
             sys.exit(0)
@@ -625,7 +625,7 @@ class WritingToolApp(QtWidgets.QApplication):
         else:
             self.tray_icon = QtWidgets.QSystemTrayIcon(QtGui.QIcon(icon_path), self)
         # Set the tooltip (hover name) for the tray icon
-        self.tray_icon.setToolTip("WritingTools")
+        self.tray_icon.setToolTip("ACNR Intelligence")
         self.tray_menu = QtWidgets.QMenu()
         self.tray_icon.setContextMenu(self.tray_menu)
 

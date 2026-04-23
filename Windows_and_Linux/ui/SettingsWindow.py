@@ -328,7 +328,7 @@ class SettingsWindow(QtWidgets.QWidget):
 
         if not self.providers_only:
             restart_text = "<p style='text-align: center;'>" + \
-            _("Please restart Writing Tools for changes to take effect.") + \
+            _("Please restart ACNR Intelligence for changes to take effect.") + \
             "</p>"
 
             restart_notice = QtWidgets.QLabel(restart_text)

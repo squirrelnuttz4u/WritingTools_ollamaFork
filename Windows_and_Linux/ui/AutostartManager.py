@@ -54,14 +54,14 @@ class AutostartManager:
                     # Open/create key and set value
                     key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, 
                                        winreg.KEY_WRITE)
-                    winreg.SetValueEx(key, "WritingTools", 0, winreg.REG_SZ, 
+                    winreg.SetValueEx(key, "ACNRIntelligence", 0, winreg.REG_SZ, 
                                     startup_path)
                 else:
                     # Open key and delete value if it exists
                     key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0,
                                        winreg.KEY_WRITE)
                     try:
-                        winreg.DeleteValue(key, "WritingTools")
+                        winreg.DeleteValue(key, "ACNRIntelligence")
                     except WindowsError:
                         # Value doesn't exist, that's fine
                         pass
@@ -94,7 +94,7 @@ class AutostartManager:
                 key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, 
                                    r"Software\Microsoft\Windows\CurrentVersion\Run",
                                    0, winreg.KEY_READ)
-                value, _ = winreg.QueryValueEx(key, "WritingTools")
+                value, _ = winreg.QueryValueEx(key, "ACNRIntelligence")
                 winreg.CloseKey(key)
                 
                 # Check if the stored path matches our current exe
