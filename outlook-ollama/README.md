@@ -41,7 +41,36 @@ outlook-ollama/
 └── README.md                        (this file)
 ```
 
-## Path A - WritingTools via Intune
+## Path A (quick test) - Standalone install on your own machine
+
+Zero infrastructure, no admin, no Intune. Hardcoded to the lab Ollama server at
+`http://192.168.203.100:11434` with model `cogito:32b`. Run on any Windows box
+that can reach that IP:
+
+```powershell
+cd outlook-ollama\deployment
+.\Install-WritingToolsStandalone.ps1
+```
+
+Optional parameters (all have sensible defaults):
+
+```powershell
+.\Install-WritingToolsStandalone.ps1 `
+    -OllamaUrl   "http://192.168.203.100:11434" `
+    -OllamaModel "cogito:32b" `
+    -Shortcut    "ctrl+space" `
+    -Force          # skip overwrite prompt
+    -NoLaunch       # install only, don't start it
+```
+
+It downloads the latest WritingTools release, extracts to
+`%LOCALAPPDATA%\WritingTools`, writes `config.json` next to the exe pointing at
+your Ollama, creates Start Menu + Desktop shortcuts, probes `/api/tags` to
+confirm reachability, and launches the app. Press `Ctrl+Space` over any
+selected text to rewrite. Uninstall = delete the install folder and the two
+shortcuts.
+
+## Path A (managed rollout) - WritingTools via Intune
 
 On a Windows machine with PowerShell 5.1+:
 
