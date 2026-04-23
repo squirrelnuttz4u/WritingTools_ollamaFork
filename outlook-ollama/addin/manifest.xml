@@ -11,10 +11,10 @@
 
   <Id>00000000-0000-0000-0000-000000000000</Id>
   <Version>1.0.0.0</Version>
-  <ProviderName>Your Company IT</ProviderName>
+  <ProviderName>American Consolidated Natural Resources, Inc.</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
-  <DisplayName DefaultValue="AI Rewriter (Internal)" />
-  <Description DefaultValue="Rewrite and summarize email with your company's internal Ollama LLM. No data leaves the corporate network." />
+  <DisplayName DefaultValue="ACNR Intelligence" />
+  <Description DefaultValue="Rewrite and summarize email with ACNR's internal Ollama LLM. No data leaves the corporate network." />
   <IconUrl DefaultValue="https://addin.corp.example.com/assets/icon-64.png" />
   <HighResolutionIconUrl DefaultValue="https://addin.corp.example.com/assets/icon-128.png" />
   <SupportUrl DefaultValue="https://addin.corp.example.com/support" />
@@ -130,14 +130,14 @@
         <bt:Url id="Commands.Url" DefaultValue="https://addin.corp.example.com/taskpane.html" />
       </bt:Urls>
       <bt:ShortStrings>
-        <bt:String id="GroupLabel.Compose" DefaultValue="AI Rewriter" />
-        <bt:String id="GroupLabel.Read" DefaultValue="AI Tools" />
-        <bt:String id="ComposeButton.Label" DefaultValue="AI Rewrite" />
-        <bt:String id="ReadButton.Label" DefaultValue="AI Summarize" />
+        <bt:String id="GroupLabel.Compose" DefaultValue="ACNR Intelligence" />
+        <bt:String id="GroupLabel.Read" DefaultValue="ACNR Intelligence" />
+        <bt:String id="ComposeButton.Label" DefaultValue="Rewrite" />
+        <bt:String id="ReadButton.Label" DefaultValue="Summarize" />
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="ComposeButton.Tooltip" DefaultValue="Rewrite the current draft with your internal Ollama LLM. No data leaves your company network." />
-        <bt:String id="ReadButton.Tooltip" DefaultValue="Summarize the selected email with your internal Ollama LLM. No data leaves your company network." />
+        <bt:String id="ComposeButton.Tooltip" DefaultValue="Rewrite the current draft with ACNR Intelligence. Runs on ACNR's internal Ollama LLM - no data leaves the corporate network." />
+        <bt:String id="ReadButton.Tooltip" DefaultValue="Summarize the selected email with ACNR Intelligence. Runs on ACNR's internal Ollama LLM - no data leaves the corporate network." />
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>

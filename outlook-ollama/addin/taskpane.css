@@ -17,11 +17,32 @@ body {
   gap: 8px;
 }
 
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand__logo {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 4px;
+}
+
+.brand__text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
 header h1 {
   margin: 0;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
-  color: #0078d4;
+  color: #b22222;              /* ACNR red */
+  letter-spacing: 0.2px;
 }
 
 .subtitle {
@@ -84,14 +105,14 @@ header h1 {
 }
 
 .btn.primary {
-  background: #0078d4;
-  border-color: #0078d4;
+  background: #b22222;     /* ACNR red */
+  border-color: #b22222;
   color: #ffffff;
 }
 
 .btn.primary:hover:not(:disabled) {
-  background: #106ebe;
-  border-color: #106ebe;
+  background: #8b1a1a;
+  border-color: #8b1a1a;
 }
 
 .status {

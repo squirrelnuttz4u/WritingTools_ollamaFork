@@ -1,58 +1,61 @@
 <#
 .SYNOPSIS
-    Build an Intune .intunewin package for WritingTools preseeded with your
-    internal Ollama configuration.
+    Build an Intune .intunewin package of WritingTools, rebranded as
+    "ACNR Intelligence" and preconfigured to use ACNR's internal Ollama server.
 
 .DESCRIPTION
-    Downloads the latest WritingTools Windows release from GitHub, writes a
-    config.template.json pointing at your Ollama endpoint, emits install /
-    uninstall / detection scripts, and wraps everything up via
-    IntuneWinAppUtil.exe into a ready-to-upload .intunewin.
+    Downloads the latest WritingTools Windows release, writes a correct
+    config.json (native Ollama provider, nested under `providers`) next to the
+    exe, bundles the ACNR logo for the shortcut icon, emits install / uninstall
+    / detection scripts, and wraps everything into a ready-to-upload
+    .intunewin.
+
+    Install is system-wide, per-device (under Program Files). config.json lives
+    next to "Writing Tools.exe", which is where the app actually reads it
+    (WritingToolApp.py:165). No scheduled task, no APPDATA seed.
 
 .PARAMETER OllamaUrl
-    Base URL of the Ollama server (e.g. https://llm.corp.example.com).
+    Base URL of the Ollama server. Default: http://192.168.203.100:11434.
 
 .PARAMETER OllamaModel
-    Ollama model tag to use (e.g. llama3.1:8b).
+    Ollama model tag. Default: cogito:32b.
 
 .PARAMETER StagingDir
-    Working directory (default .\WritingTools-Intune).
-
-.PARAMETER ApiKey
-    Bearer key (WritingTools requires a non-empty key field; Ollama ignores it).
+    Working directory. Default: .\WritingTools-Intune.
 
 .PARAMETER Shortcut
-    WritingTools global hotkey (default ctrl+space).
+    Global hotkey for the rewrite popup. Default: ctrl+space.
+
+.PARAMETER LogoIco
+    Path to a multi-size .ico to use for the Start Menu shortcut. Default:
+    ..\branding\logo.ico relative to this script.
 
 .EXAMPLE
-    .\Build-WritingToolsIntunePackage.ps1 -OllamaUrl "https://llm.corp.example.com" -OllamaModel "llama3.1:8b"
+    # Uses all ACNR defaults (lab Ollama, cogito:32b, bundled logo):
+    .\Build-WritingToolsIntunePackage.ps1
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)]
-    [string]$OllamaUrl,
-
-    [Parameter(Mandatory = $true)]
-    [string]$OllamaModel,
-
-    [string]$StagingDir = ".\WritingTools-Intune",
-
-    [string]$ApiKey = "ollama",
-
-    [string]$Shortcut = "ctrl+space"
+    [string]$OllamaUrl   = "http://192.168.203.100:11434",
+    [string]$OllamaModel = "cogito:32b",
+    [string]$StagingDir  = ".\WritingTools-Intune",
+    [string]$Shortcut    = "ctrl+space",
+    [string]$LogoIco     = (Join-Path $PSScriptRoot "..\branding\logo.ico")
 )
 
 $ErrorActionPreference = "Stop"
-$ProgressPreference = "SilentlyContinue"
+$ProgressPreference    = "SilentlyContinue"
+
+$ProductName     = "ACNR Intelligence"
+$InstallFolder   = "ACNR Intelligence"   # under %ProgramFiles%
 
 function Write-Log {
     param([string]$Message)
-    $ts = (Get-Date).ToString("HH:mm:ss")
-    Write-Host "[$ts] $Message"
+    Write-Host "[$((Get-Date).ToString('HH:mm:ss'))] $Message"
 }
 
 # ------------------------------------------------------------------
-# 1. Staging directories
+# 1. Staging
 # ------------------------------------------------------------------
 $stagingRoot = (Resolve-Path -LiteralPath (New-Item -ItemType Directory -Path $StagingDir -Force)).Path
 $sourceDir   = Join-Path $stagingRoot "source"
@@ -62,10 +65,10 @@ $null = New-Item -ItemType Directory -Path $sourceDir, $appDir, $outputDir -Forc
 Write-Log "Staging: $stagingRoot"
 
 # ------------------------------------------------------------------
-# 2. Find latest WritingTools Windows release
+# 2. Find + download latest WritingTools release
 # ------------------------------------------------------------------
 Write-Log "Querying GitHub for latest WritingTools release..."
-$headers = @{ "User-Agent" = "WritingTools-IntunePackager" }
+$headers = @{ "User-Agent" = "ACNR-Intelligence-Packager" }
 $release = Invoke-RestMethod -Uri "https://api.github.com/repos/theJayTea/WritingTools/releases/latest" -Headers $headers
 
 $asset = $release.assets | Where-Object {
@@ -76,133 +79,119 @@ $asset = $release.assets | Where-Object {
 } | Select-Object -First 1
 
 if (-not $asset) {
-    throw "Could not find a Windows zip asset in release '$($release.tag_name)'. Available: $($release.assets.name -join ', ')"
+    throw "No Windows zip asset in release '$($release.tag_name)'. Available: $($release.assets.name -join ', ')"
 }
 Write-Log "Found asset: $($asset.name) ($([math]::Round($asset.size / 1MB, 1)) MB)"
 
-# ------------------------------------------------------------------
-# 3. Download + extract
-# ------------------------------------------------------------------
 $zipPath = Join-Path $sourceDir "app.zip"
-Write-Log "Downloading $($asset.browser_download_url)..."
 Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zipPath -Headers $headers
-
-Write-Log "Extracting..."
 Expand-Archive -Path $zipPath -DestinationPath $appDir -Force
 Remove-Item $zipPath -Force
 
-# If the exe is nested inside a single subfolder, flatten.
+# Flatten if the zip extracted into a nested folder.
 $exe = Get-ChildItem -Path $appDir -Recurse -Filter "Writing Tools.exe" | Select-Object -First 1
-if (-not $exe) {
-    throw "Writing Tools.exe not found under $appDir."
-}
+if (-not $exe) { throw "Writing Tools.exe not found under $appDir." }
 if ($exe.DirectoryName -ne $appDir) {
-    Write-Log "Flattening nested folder: $($exe.DirectoryName)"
-    $nested = $exe.Directory
-    Get-ChildItem -LiteralPath $nested.FullName -Force | ForEach-Object {
+    $nested = $exe.Directory.FullName
+    Get-ChildItem -LiteralPath $nested -Force | ForEach-Object {
         Move-Item -LiteralPath $_.FullName -Destination $appDir -Force
     }
-    Remove-Item -LiteralPath $nested.FullName -Recurse -Force
+    Remove-Item -LiteralPath $nested -Recurse -Force
 }
 
 # ------------------------------------------------------------------
-# 4. Write config template
+# 3. config.json - native Ollama provider, nested shape, next to exe
 # ------------------------------------------------------------------
-$systemPrompt = "You are a concise, professional writing assistant. Improve clarity, grammar, and tone without changing meaning. Output only the rewritten text."
-
-$config = [ordered]@{
-    provider      = "OpenAI Compatible"
-    api_key       = $ApiKey
-    api_base      = ($OllamaUrl.TrimEnd('/') + "/v1")
-    model_name    = $OllamaModel
-    shortcut      = $Shortcut
-    theme         = "gradient"
-    streaming     = $true
-    system_prompt = $systemPrompt
+$providerName = "Ollama (For Experts)"
+$configObj = [ordered]@{
+    provider  = $providerName
+    shortcut  = $Shortcut
+    theme     = "gradient"
+    providers = [ordered]@{
+        $providerName = [ordered]@{
+            api_base   = $OllamaUrl.TrimEnd('/')
+            api_model  = $OllamaModel
+            keep_alive = "5"
+        }
+    }
 }
-$configPath = Join-Path $appDir "config.template.json"
-$config | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $configPath -Encoding UTF8
-Write-Log "Wrote config template: $configPath"
+$configPath = Join-Path $appDir "config.json"
+$configObj | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $configPath -Encoding UTF8
+Write-Log "Wrote config.json next to Writing Tools.exe (provider=$providerName)"
 
 # ------------------------------------------------------------------
-# 5. Emit install / uninstall / detection scripts
+# 4. Copy branding .ico next to the exe
 # ------------------------------------------------------------------
-$installScript = @'
+$logoStaged = Join-Path $appDir "acnr.ico"
+if (Test-Path -LiteralPath $LogoIco) {
+    Copy-Item -LiteralPath $LogoIco -Destination $logoStaged -Force
+    Write-Log "Bundled logo: $LogoIco"
+} else {
+    Write-Log "WARNING: LogoIco not found at $LogoIco - shortcut will fall back to exe icon."
+    $logoStaged = $null
+}
+
+# ------------------------------------------------------------------
+# 5. install / uninstall / detection scripts
+# ------------------------------------------------------------------
+# Build install.ps1 as an expandable here-string so the product name,
+# install folder, and logo flag are baked in at package time.
+$logoFlag = if ($logoStaged) { "true" } else { "false" }
+
+$installScript = @"
 # install.ps1 - runs as SYSTEM via Intune
-$ErrorActionPreference = "Stop"
+`$ErrorActionPreference = "Stop"
 
-$installDir = Join-Path $env:ProgramFiles "WritingTools"
-$dataDir    = Join-Path $env:ProgramData "WritingTools"
-$null = New-Item -ItemType Directory -Path $installDir, $dataDir -Force
+`$installDir    = Join-Path `$env:ProgramFiles "$InstallFolder"
+`$productName   = "$ProductName"
+`$haveLogo      = `$$logoFlag
 
-# Copy everything except the three management scripts.
-$skip = @("install.ps1", "uninstall.ps1", "detection.ps1")
-Get-ChildItem -LiteralPath $PSScriptRoot -Force | Where-Object { $skip -notcontains $_.Name } | ForEach-Object {
-    Copy-Item -LiteralPath $_.FullName -Destination $installDir -Recurse -Force
+if (Test-Path -LiteralPath `$installDir) {
+    Remove-Item -LiteralPath `$installDir -Recurse -Force -ErrorAction SilentlyContinue
+}
+`$null = New-Item -ItemType Directory -Path `$installDir -Force
+
+# Copy everything from the package root into the install dir except these scripts.
+`$skip = @("install.ps1", "uninstall.ps1", "detection.ps1")
+Get-ChildItem -LiteralPath `$PSScriptRoot -Force | Where-Object { `$skip -notcontains `$_.Name } | ForEach-Object {
+    Copy-Item -LiteralPath `$_.FullName -Destination `$installDir -Recurse -Force
 }
 
 # All-users Start Menu shortcut.
-$shortcutPath = Join-Path $env:ProgramData "Microsoft\Windows\Start Menu\Programs\Writing Tools.lnk"
-$shell = New-Object -ComObject WScript.Shell
-$link = $shell.CreateShortcut($shortcutPath)
-$link.TargetPath = Join-Path $installDir "Writing Tools.exe"
-$link.WorkingDirectory = $installDir
-$link.IconLocation = (Join-Path $installDir "Writing Tools.exe") + ",0"
-$link.Save()
-
-# Per-user seed-config script: copies config.template.json -> %APPDATA%\Writing Tools\config.json on first login.
-$seedScript = @"
-`$ErrorActionPreference = 'SilentlyContinue'
-`$dest = Join-Path `$env:APPDATA 'Writing Tools'
-`$destFile = Join-Path `$dest 'config.json'
-if (-not (Test-Path `$destFile)) {
-    New-Item -ItemType Directory -Path `$dest -Force | Out-Null
-    Copy-Item -LiteralPath '$installDir\config.template.json' -Destination `$destFile -Force
-}
-"@
-$seedPath = Join-Path $dataDir "seed-config.ps1"
-Set-Content -LiteralPath $seedPath -Value $seedScript -Encoding UTF8
-
-# Scheduled task that runs the seed script at each user logon.
-$taskName = "WritingTools-SeedConfig"
-$action   = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$seedPath`""
-$trigger  = New-ScheduledTaskTrigger -AtLogOn
-$principal = New-ScheduledTaskPrincipal -GroupId "S-1-5-32-545" -RunLevel Limited
-$settings  = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
-if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) {
-    Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
-}
-Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings | Out-Null
+`$exePath = Join-Path `$installDir "Writing Tools.exe"
+`$iconPath = if (`$haveLogo) { Join-Path `$installDir "acnr.ico" } else { `$exePath + ",0" }
+`$shortcutPath = Join-Path `$env:ProgramData "Microsoft\Windows\Start Menu\Programs\`$productName.lnk"
+`$shell = New-Object -ComObject WScript.Shell
+`$link = `$shell.CreateShortcut(`$shortcutPath)
+`$link.TargetPath       = `$exePath
+`$link.WorkingDirectory = `$installDir
+`$link.IconLocation     = `$iconPath
+`$link.Description      = "`$productName - internal AI writing assistant"
+`$link.Save()
 
 # Detection marker
-Set-Content -LiteralPath (Join-Path $installDir ".installed") -Value (Get-Date -Format o) -Encoding UTF8
+Set-Content -LiteralPath (Join-Path `$installDir ".installed") -Value (Get-Date -Format o) -Encoding UTF8
 exit 0
-'@
+"@
 
-$uninstallScript = @'
+$uninstallScript = @"
 # uninstall.ps1
-$ErrorActionPreference = "SilentlyContinue"
+`$ErrorActionPreference = "SilentlyContinue"
 
-$taskName = "WritingTools-SeedConfig"
-if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) {
-    Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
-}
+`$installDir    = Join-Path `$env:ProgramFiles "$InstallFolder"
+`$shortcutPath  = Join-Path `$env:ProgramData "Microsoft\Windows\Start Menu\Programs\$ProductName.lnk"
 
-$installDir   = Join-Path $env:ProgramFiles "WritingTools"
-$dataDir      = Join-Path $env:ProgramData "WritingTools"
-$shortcutPath = Join-Path $env:ProgramData "Microsoft\Windows\Start Menu\Programs\Writing Tools.lnk"
-
-Remove-Item -LiteralPath $installDir -Recurse -Force -ErrorAction SilentlyContinue
-Remove-Item -LiteralPath $dataDir -Recurse -Force -ErrorAction SilentlyContinue
-Remove-Item -LiteralPath $shortcutPath -Force -ErrorAction SilentlyContinue
+Get-Process -Name "Writing Tools" -ErrorAction SilentlyContinue | Stop-Process -Force
+Remove-Item -LiteralPath `$installDir -Recurse -Force
+Remove-Item -LiteralPath `$shortcutPath -Force
 exit 0
-'@
+"@
 
-$detectionScript = @'
-# detection.ps1 - Intune custom detection (exit 0 = installed, exit 1 = missing)
-$marker = Join-Path $env:ProgramFiles "WritingTools\.installed"
-if (Test-Path -LiteralPath $marker) { exit 0 } else { exit 1 }
-'@
+$detectionScript = @"
+# detection.ps1 - Intune custom detection (exit 0 = installed)
+`$marker = Join-Path `$env:ProgramFiles "$InstallFolder\.installed"
+if (Test-Path -LiteralPath `$marker) { exit 0 } else { exit 1 }
+"@
 
 Set-Content -LiteralPath (Join-Path $appDir "install.ps1")   -Value $installScript   -Encoding UTF8
 Set-Content -LiteralPath (Join-Path $appDir "uninstall.ps1") -Value $uninstallScript -Encoding UTF8
@@ -222,33 +211,32 @@ if (-not (Test-Path -LiteralPath $toolPath)) {
 
 Write-Log "Running IntuneWinAppUtil..."
 & $toolPath -c $appDir -s "install.ps1" -o $outputDir -q
-if ($LASTEXITCODE -ne 0) {
-    throw "IntuneWinAppUtil.exe failed with exit code $LASTEXITCODE."
-}
+if ($LASTEXITCODE -ne 0) { throw "IntuneWinAppUtil.exe failed with exit code $LASTEXITCODE." }
 
 $intunewin = Get-ChildItem -LiteralPath $outputDir -Filter "*.intunewin" | Select-Object -First 1
-if (-not $intunewin) {
-    throw "No .intunewin produced in $outputDir."
-}
+if (-not $intunewin) { throw "No .intunewin produced in $outputDir." }
 
 # ------------------------------------------------------------------
 # 7. Summary
 # ------------------------------------------------------------------
 Write-Host ""
-Write-Host "================================================================"
-Write-Host "  Package built: $($intunewin.FullName)"
-Write-Host "  Size:          $([math]::Round($intunewin.Length / 1MB, 1)) MB"
-Write-Host "================================================================"
+Write-Host "==============================================================="
+Write-Host "  $ProductName package built"
+Write-Host "  File:  $($intunewin.FullName)"
+Write-Host "  Size:  $([math]::Round($intunewin.Length / 1MB, 1)) MB"
+Write-Host "==============================================================="
 Write-Host ""
 Write-Host "Intune > Apps > Windows > Add > Windows app (Win32):"
 Write-Host ""
+Write-Host "  Name:              $ProductName"
+Write-Host "  Publisher:         American Consolidated Natural Resources, Inc."
 Write-Host "  Install command:   powershell.exe -NoProfile -ExecutionPolicy Bypass -File install.ps1"
 Write-Host "  Uninstall command: powershell.exe -NoProfile -ExecutionPolicy Bypass -File uninstall.ps1"
 Write-Host "  Detection:         Custom script -> detection.ps1"
 Write-Host "  Install behavior:  System"
 Write-Host ""
 Write-Host "Baked config:"
-Write-Host "  api_base:   $($OllamaUrl.TrimEnd('/'))/v1"
-Write-Host "  model_name: $OllamaModel"
+Write-Host "  api_base:   $($OllamaUrl.TrimEnd('/'))"
+Write-Host "  api_model:  $OllamaModel"
 Write-Host "  shortcut:   $Shortcut"
 Write-Host ""

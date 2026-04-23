@@ -1,21 +1,24 @@
 <#
 .SYNOPSIS
-    Download, install and configure WritingTools for immediate local testing
-    against an internal Ollama server. No admin, no Intune, no Docker.
+    Install ACNR Intelligence (branded WritingTools) on your own Windows box
+    for immediate local testing against an internal Ollama server. No admin,
+    no Intune, no Docker.
 
 .DESCRIPTION
     Fetches the latest WritingTools Windows release from GitHub, extracts it
-    into $env:LOCALAPPDATA\WritingTools, writes a config.json pointing at the
-    specified Ollama server using the native Ollama provider, creates Start
-    Menu + Desktop shortcuts, and optionally launches the app.
+    into $env:LOCALAPPDATA\ACNRIntelligence, writes a config.json pointing at
+    the specified Ollama server using the native Ollama provider, bundles the
+    ACNR logo as the shortcut icon, creates Start Menu + Desktop shortcuts
+    named "ACNR Intelligence", and optionally launches the app.
 
-    Defaults are hardcoded for the current test environment:
+    Defaults are hardcoded for the current ACNR test environment:
         OllamaUrl   = http://192.168.203.100:11434
         OllamaModel = cogito:32b
+        LogoIco     = ..\branding\logo.ico (relative to this script)
     Just run the script with no arguments.
 
 .EXAMPLE
-    # Quick test against the hardcoded Ollama server:
+    # Quick test against the hardcoded ACNR lab Ollama server:
     .\Install-WritingToolsStandalone.ps1
 
 .EXAMPLE
@@ -27,21 +30,24 @@
     .\Install-WritingToolsStandalone.ps1 -Force
 
 .NOTES
-    Uninstall:  remove $env:LOCALAPPDATA\WritingTools and the two shortcuts.
+    Uninstall:  remove $env:LOCALAPPDATA\ACNRIntelligence and the two shortcuts.
     Config is kept next to Writing Tools.exe (which is where the app looks).
 #>
 [CmdletBinding()]
 param(
     [string]$OllamaUrl   = "http://192.168.203.100:11434",
     [string]$OllamaModel = "cogito:32b",
-    [string]$InstallDir  = (Join-Path $env:LOCALAPPDATA "WritingTools"),
+    [string]$InstallDir  = (Join-Path $env:LOCALAPPDATA "ACNRIntelligence"),
     [string]$Shortcut    = "ctrl+space",
+    [string]$LogoIco     = (Join-Path $PSScriptRoot "..\branding\logo.ico"),
     [switch]$Force,
     [switch]$NoLaunch
 )
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference    = "SilentlyContinue"
+
+$ProductName = "ACNR Intelligence"
 
 function Write-Log {
     param([string]$Message)
@@ -55,7 +61,7 @@ if (Test-Path -LiteralPath $InstallDir) {
     $existingExe = Join-Path $InstallDir "Writing Tools.exe"
     if ((Test-Path -LiteralPath $existingExe) -and -not $Force) {
         Write-Host ""
-        Write-Host "WritingTools already installed at: $InstallDir"
+        Write-Host "$ProductName already installed at: $InstallDir"
         $answer = Read-Host "Overwrite existing install? [y/N]"
         if ($answer -notmatch '^(y|yes)$') {
             Write-Host "Aborted. Use -Force to skip this prompt."
@@ -131,25 +137,39 @@ $config | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $configPath -Encodi
 Write-Log "Wrote config: $configPath"
 
 # ------------------------------------------------------------------
+# 3b. Bundle the logo next to the exe so the shortcut icon survives moves.
+# ------------------------------------------------------------------
+$iconTarget = $null
+if ($LogoIco -and (Test-Path -LiteralPath $LogoIco)) {
+    $iconTarget = Join-Path $InstallDir "acnr.ico"
+    Copy-Item -LiteralPath $LogoIco -Destination $iconTarget -Force
+    Write-Log "Bundled logo: $LogoIco"
+} else {
+    Write-Log "No logo.ico found - shortcut will use the exe's default icon."
+}
+
+# ------------------------------------------------------------------
 # 4. Start Menu + Desktop shortcuts (per-user, no admin)
 # ------------------------------------------------------------------
 $startMenuDir = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"
 $null = New-Item -ItemType Directory -Path $startMenuDir -Force
 $shortcutPaths = @(
-    (Join-Path $startMenuDir "Writing Tools.lnk"),
-    (Join-Path ([Environment]::GetFolderPath("Desktop")) "Writing Tools.lnk")
+    (Join-Path $startMenuDir "$ProductName.lnk"),
+    (Join-Path ([Environment]::GetFolderPath("Desktop")) "$ProductName.lnk")
 )
 
 $shell = New-Object -ComObject WScript.Shell
 $exePath = Join-Path $InstallDir "Writing Tools.exe"
+$iconLocation = if ($iconTarget) { $iconTarget } else { "$exePath,0" }
 foreach ($path in $shortcutPaths) {
     $link = $shell.CreateShortcut($path)
     $link.TargetPath       = $exePath
     $link.WorkingDirectory = $InstallDir
-    $link.IconLocation     = "$exePath,0"
+    $link.IconLocation     = $iconLocation
+    $link.Description      = "$ProductName - internal AI writing assistant"
     $link.Save()
 }
-Write-Log "Created Start Menu + Desktop shortcuts."
+Write-Log "Created '$ProductName' Start Menu + Desktop shortcuts."
 
 # ------------------------------------------------------------------
 # 5. Sanity check: can the config reach Ollama?
@@ -176,7 +196,7 @@ try {
 # ------------------------------------------------------------------
 Write-Host ""
 Write-Host "==========================================================="
-Write-Host "  WritingTools installed."
+Write-Host "  $ProductName installed."
 Write-Host "  Location:  $InstallDir"
 Write-Host "  Ollama:    $OllamaUrl"
 Write-Host "  Model:     $OllamaModel"
@@ -188,6 +208,6 @@ Write-Host "To uninstall: delete $InstallDir and the two shortcuts."
 Write-Host ""
 
 if (-not $NoLaunch) {
-    Write-Log "Launching Writing Tools..."
+    Write-Log "Launching $ProductName..."
     Start-Process -FilePath $exePath -WorkingDirectory $InstallDir
 }

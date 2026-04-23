@@ -1,10 +1,12 @@
-# Outlook + Ollama: In-House AI Rewriter
+# ACNR Intelligence
 
-This repo delivers an AI rewrite/summarize experience for Microsoft Outlook powered
-entirely by your internal Ollama server. It ships three complementary paths:
-a same-week Intune rollout of the open-source WritingTools app (system-wide
-hotkey), a production-ready Office.js Outlook add-in that lives in the ribbon,
-and guidance about the VSTO/COM dead-end so nobody wastes time on it.
+An in-house AI rewrite / summarize experience for Microsoft Outlook and the
+rest of the Windows desktop, powered entirely by ACNR's internal Ollama
+server. Ships three complementary paths: a one-command standalone install
+for immediate testing, a managed Intune rollout of a rebranded WritingTools
+build (system-wide hotkey), and a production-ready Office.js Outlook add-in
+that lives in the ribbon. Plus guidance about the VSTO/COM dead-end so
+nobody wastes time on it.
 
 ## Deployment paths
 
@@ -19,33 +21,53 @@ and guidance about the VSTO/COM dead-end so nobody wastes time on it.
 > reshipping it inside 12 months. See Microsoft's
 > [One Outlook add-in guidance](https://learn.microsoft.com/en-us/office/dev/add-ins/outlook/one-outlook).
 
+## Before first build: drop the real logo
+
+`outlook-ollama/branding/logo.png` is currently a **placeholder** (red square
+with "ACNR" across it). Replace it with the real ACNR logo (square PNG,
+>= 256x256, transparent background preferred) and rerun:
+
+```bash
+pip install Pillow
+python outlook-ollama/branding/generate_logo_assets.py
+```
+
+That regenerates `branding/logo.ico` and the `addin/assets/icon-*.png` ribbon
+icons. The task pane and shortcuts pick up the new artwork automatically on
+the next install. See `branding/README.md` for details.
+
 ## Repo layout
 
 ```
 outlook-ollama/
-├── backend/                         Flask proxy to Ollama
+├── branding/                        ACNR logo and icon generator
+│   ├── logo.png                     master artwork (replace placeholder)
+│   ├── logo.ico                     multi-size Windows icon (auto-generated)
+│   └── generate_logo_assets.py      rebuilds .ico + ribbon PNGs
+├── backend/                         Flask proxy to Ollama (for Path B)
 │   ├── app.py                       /rewrite /summarize /generate /generate_sse /models /health
 │   ├── requirements.txt
 │   ├── Dockerfile                   gunicorn, HEALTHCHECK
 │   ├── docker-compose.yml           proxy + Caddy for TLS
 │   ├── Caddyfile
 │   └── test_app.py                  pytest unit tests
-├── addin/                           Office.js Outlook add-in
+├── addin/                           Office.js Outlook add-in (ACNR Intelligence)
 │   ├── manifest.xml                 Ribbon buttons for compose + read
 │   ├── taskpane.html
 │   ├── taskpane.css
 │   ├── taskpane.js
-│   └── assets/                      Placeholder icons (replace with brand)
+│   └── assets/                      Ribbon icons (generated from branding/)
 ├── deployment/
-│   └── Build-WritingToolsIntunePackage.ps1
+│   ├── Install-WritingToolsStandalone.ps1   Path A1 - zero-infra local test
+│   └── Build-WritingToolsIntunePackage.ps1  Path A2 - managed Intune rollout
 └── README.md                        (this file)
 ```
 
 ## Path A (quick test) - Standalone install on your own machine
 
-Zero infrastructure, no admin, no Intune. Hardcoded to the lab Ollama server at
-`http://192.168.203.100:11434` with model `cogito:32b`. Run on any Windows box
-that can reach that IP:
+Zero infrastructure, no admin, no Intune. Hardcoded to ACNR's lab Ollama server
+at `http://192.168.203.100:11434` with model `cogito:32b`. Run on any Windows
+box that can reach that IP:
 
 ```powershell
 cd outlook-ollama\deployment
@@ -64,25 +86,31 @@ Optional parameters (all have sensible defaults):
 ```
 
 It downloads the latest WritingTools release, extracts to
-`%LOCALAPPDATA%\WritingTools`, writes `config.json` next to the exe pointing at
-your Ollama, creates Start Menu + Desktop shortcuts, probes `/api/tags` to
-confirm reachability, and launches the app. Press `Ctrl+Space` over any
-selected text to rewrite. Uninstall = delete the install folder and the two
-shortcuts.
+`%LOCALAPPDATA%\ACNRIntelligence`, writes `config.json` next to the exe
+pointing at your Ollama, bundles `branding/logo.ico` as the shortcut icon,
+creates Start Menu + Desktop shortcuts named **"ACNR Intelligence"**, probes
+`/api/tags` to confirm reachability, and launches the app. Press `Ctrl+Space`
+over any selected text to rewrite. Uninstall = delete
+`%LOCALAPPDATA%\ACNRIntelligence` and the two shortcuts.
 
-## Path A (managed rollout) - WritingTools via Intune
+## Path A (managed rollout) - ACNR Intelligence via Intune
 
 On a Windows machine with PowerShell 5.1+:
 
 ```powershell
 cd outlook-ollama\deployment
+.\Build-WritingToolsIntunePackage.ps1           # uses ACNR lab defaults
+# or override:
 .\Build-WritingToolsIntunePackage.ps1 `
-    -OllamaUrl   "https://llm.corp.example.com" `
-    -OllamaModel "llama3.1:8b"
+    -OllamaUrl   "http://192.168.203.100:11434" `
+    -OllamaModel "cogito:32b"
 ```
 
-The script downloads the latest WritingTools release, bakes in your Ollama
-endpoint, and emits a `.intunewin` under `WritingTools-Intune\output\`.
+The script downloads the latest WritingTools release, writes a correct
+`config.json` (native Ollama provider, nested shape, placed next to the exe
+where the app actually reads it), bundles `branding/logo.ico` as the Start
+Menu icon, and emits a `.intunewin` under `WritingTools-Intune\output\`. App
+name in Start Menu / Programs & Features: **ACNR Intelligence**.
 
 In Intune:
 
