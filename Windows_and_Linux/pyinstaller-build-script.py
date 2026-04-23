@@ -16,6 +16,11 @@ def run_pyinstaller_build():
         # so we actively block the entire google / openai stack (and its
         # transitive deps) to keep the binary small and sidestep the
         # cryptography / grpc PyInstaller headaches.
+        #
+        # DO NOT exclude httpx - the `ollama` Python client imports it
+        # directly for HTTP transport.
+        "--collect-submodules", "ollama",
+        "--collect-submodules", "httpx",
         "--exclude-module", "google",
         "--exclude-module", "google.generativeai",
         "--exclude-module", "google.auth",
@@ -25,7 +30,6 @@ def run_pyinstaller_build():
         "--exclude-module", "grpcio",
         "--exclude-module", "proto",
         "--exclude-module", "openai",
-        "--exclude-module", "httpx",
         "--exclude-module", "cryptography",
         "--exclude-module", "tkinter",
         "--exclude-module", "unittest",
