@@ -3,7 +3,7 @@ import logging
 from PySide6 import QtCore, QtWidgets
 from PySide6.QtWidgets import QHBoxLayout, QRadioButton
 
-from ui.UIUtils import UIUtils, colorMode
+from ui.UIUtils import ACCENT, ACCENT_HOVER, UIUtils, colorMode
 
 _ = lambda x: x
 
@@ -15,7 +15,7 @@ class OnboardingWindow(QtWidgets.QWidget):
         super().__init__()
         self.app = app
         self.shortcut = 'ctrl+space'
-        self.theme = 'gradient'
+        self.theme = 'acnr'
         self.content_layout = None
         self.shortcut_input = None
         self.init_ui()
@@ -77,36 +77,40 @@ class OnboardingWindow(QtWidgets.QWidget):
         self.content_layout.addWidget(theme_label)
 
         theme_layout = QHBoxLayout()
-        gradient_radio = QRadioButton(_("Gradient"))
-        plain_radio = QRadioButton(_("Plain"))
-        gradient_radio.setStyleSheet(f"color: {'#ffffff' if colorMode == 'dark' else '#333333'};")
-        plain_radio.setStyleSheet(f"color: {'#ffffff' if colorMode == 'dark' else '#333333'};")
-        gradient_radio.setChecked(self.theme == 'gradient')
-        plain_radio.setChecked(self.theme == 'plain')
-        theme_layout.addWidget(gradient_radio)
-        theme_layout.addWidget(plain_radio)
+        text_color = '#ffffff' if colorMode == 'dark' else '#333333'
+        self._theme_radios = {
+            'acnr':     QRadioButton(_("ACNR (default)")),
+            'dark':     QRadioButton(_("Dark")),
+            'gradient': QRadioButton(_("Gradient")),
+            'plain':    QRadioButton(_("Plain")),
+        }
+        for key, rb in self._theme_radios.items():
+            rb.setStyleSheet(f"color: {text_color};")
+            rb.setChecked(key == self.theme)
+            theme_layout.addWidget(rb)
         self.content_layout.addLayout(theme_layout)
 
         next_button = QtWidgets.QPushButton(_('Next'))
-        next_button.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
+        next_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {ACCENT};
                 color: white;
                 padding: 10px;
                 font-size: 16px;
                 border: none;
                 border-radius: 5px;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {ACCENT_HOVER};
+            }}
         """)
-        next_button.clicked.connect(lambda: self.on_next_clicked(gradient_radio.isChecked()))
+        next_button.clicked.connect(self.on_next_clicked)
         self.content_layout.addWidget(next_button)
 
-    def on_next_clicked(self, is_gradient):
+    def on_next_clicked(self):
         self.shortcut = self.shortcut_input.text()
-        self.theme = 'gradient' if is_gradient else 'plain'
+        selected = next((key for key, rb in self._theme_radios.items() if rb.isChecked()), 'acnr')
+        self.theme = selected
         logging.debug(f'User selected shortcut: {self.shortcut}, theme: {self.theme}')
         self.app.config = {
             'shortcut': self.shortcut,

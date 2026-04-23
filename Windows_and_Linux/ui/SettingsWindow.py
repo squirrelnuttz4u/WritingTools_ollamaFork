@@ -7,7 +7,7 @@ from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QHBoxLayout, QRadioButton, QScrollArea
 
 from ui.AutostartManager import AutostartManager
-from ui.UIUtils import UIUtils, colorMode
+from ui.UIUtils import ACCENT, ACCENT_HOVER, UIUtils, colorMode
 
 _ = lambda x: x
 
@@ -23,8 +23,7 @@ class SettingsWindow(QtWidgets.QWidget):
         self.app = app
         self.current_provider_layout = None
         self.providers_only = providers_only
-        self.gradient_radio = None
-        self.plain_radio = None
+        self._theme_radios = {}
         self.provider_dropdown = None
         self.provider_container = None
         self.autostart_checkbox = None
@@ -240,15 +239,18 @@ class SettingsWindow(QtWidgets.QWidget):
             content_layout.addWidget(theme_label)
 
             theme_layout = QHBoxLayout()
-            self.gradient_radio = QRadioButton(_("Blurry Gradient"))
-            self.plain_radio = QRadioButton(_("Plain"))
-            self.gradient_radio.setStyleSheet(f"color: {'#ffffff' if colorMode == 'dark' else '#333333'};")
-            self.plain_radio.setStyleSheet(f"color: {'#ffffff' if colorMode == 'dark' else '#333333'};")
-            current_theme = self.app.config.get('theme', 'gradient')
-            self.gradient_radio.setChecked(current_theme == 'gradient')
-            self.plain_radio.setChecked(current_theme == 'plain')
-            theme_layout.addWidget(self.gradient_radio)
-            theme_layout.addWidget(self.plain_radio)
+            text_color = '#ffffff' if colorMode == 'dark' else '#333333'
+            self._theme_radios = {
+                'acnr':     QRadioButton(_("ACNR")),
+                'dark':     QRadioButton(_("Dark")),
+                'gradient': QRadioButton(_("Gradient")),
+                'plain':    QRadioButton(_("Plain")),
+            }
+            current_theme = self.app.config.get('theme', 'acnr')
+            for key, rb in self._theme_radios.items():
+                rb.setStyleSheet(f"color: {text_color};")
+                rb.setChecked(key == current_theme)
+                theme_layout.addWidget(rb)
             content_layout.addLayout(theme_layout)
 
         # Add provider selection
@@ -310,18 +312,18 @@ class SettingsWindow(QtWidgets.QWidget):
 
         # Add save button to bottom container
         save_button = QtWidgets.QPushButton(_("Finish AI Setup") if self.providers_only else _("Save"))
-        save_button.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
+        save_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {ACCENT};
                 color: white;
                 padding: 10px;
                 font-size: 16px;
                 border: none;
                 border-radius: 5px;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {ACCENT_HOVER};
+            }}
         """)
         save_button.clicked.connect(self.save_settings)
         bottom_layout.addWidget(save_button)
@@ -355,7 +357,10 @@ class SettingsWindow(QtWidgets.QWidget):
 
         if not self.providers_only:
             self.app.config['shortcut'] = self.shortcut_input.text()
-            self.app.config['theme'] = 'gradient' if self.gradient_radio.isChecked() else 'plain'
+            self.app.config['theme'] = next(
+                (key for key, rb in self._theme_radios.items() if rb.isChecked()),
+                'acnr',
+            )
         else:
             self.app.create_tray_icon()
 

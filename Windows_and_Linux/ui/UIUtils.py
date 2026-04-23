@@ -1,11 +1,48 @@
+import json
 import os
 import sys
 
+import darkdetect
 from PySide6 import QtGui, QtCore, QtWidgets
 from PySide6.QtGui import QImage, QPixmap
 
-import darkdetect
-colorMode = 'dark' if darkdetect.isDark() else 'light'
+
+# ---------------------------------------------------------------------------
+# Theme resolution (runs at import time - BEFORE any UI module captures
+# `colorMode` via `from ui.UIUtils import colorMode`).
+#
+# Supported themes:
+#   acnr    - ACNR brand: near-white bg, dark-grey text, red accents. Default.
+#   dark    - Pure dark: near-black bg, white text, ACNR-red accents kept.
+#   gradient- Legacy: the upstream gradient background; follows OS dark mode.
+#   plain   - Legacy: solid neutral grey; follows OS dark mode.
+# ---------------------------------------------------------------------------
+_CONFIG_PATH = os.path.join(os.path.dirname(sys.argv[0]), 'config.json')
+try:
+    with open(_CONFIG_PATH, 'r', encoding='utf-8') as _f:
+        theme = (json.load(_f).get('theme') or 'acnr').lower()
+except (OSError, ValueError):
+    theme = 'acnr'
+
+if theme == 'dark':
+    colorMode = 'dark'
+elif theme == 'acnr':
+    colorMode = 'light'
+else:
+    # gradient / plain / anything else -> follow the OS
+    colorMode = 'dark' if darkdetect.isDark() else 'light'
+
+
+# Brand accent used by primary buttons (Send, Save, update-available link).
+# ACNR red is kept on both the acnr and dark themes so branding stays
+# consistent; the legacy themes fall back to the upstream green.
+if theme in ('acnr', 'dark'):
+    ACCENT       = '#b22222'   # ACNR firebrick red
+    ACCENT_HOVER = '#8b1a1a'   # darker on hover
+else:
+    ACCENT       = '#2e7d32' if colorMode == 'dark' else '#4CAF50'
+    ACCENT_HOVER = '#1b5e20' if colorMode == 'dark' else '#45a049'
+
 
 class UIUtils:
     @classmethod
@@ -14,7 +51,7 @@ class UIUtils:
         Clear the layout of all widgets.
         """
         while ((child := layout.takeAt(0)) != None):
-            #If the child is a layout, delete it
+            # If the child is a layout, delete it
             if child.layout():
                 cls.clear_layout(child.layout())
                 child.layout().deleteLater()
@@ -22,7 +59,7 @@ class UIUtils:
                 child.widget().deleteLater()
 
     @classmethod
-    def resize_and_round_image(cls, image, image_size = 100, rounding_amount = 50):
+    def resize_and_round_image(cls, image, image_size=100, rounding_amount=50):
         image = image.scaledToWidth(image_size)
         clipPath = QtGui.QPainterPath()
         clipPath.addRoundedRect(0, 0, image_size, image_size, rounding_amount, rounding_amount)
@@ -40,18 +77,24 @@ class UIUtils:
     def setup_window_and_layout(cls, base: QtWidgets.QWidget):
         # Set the window icon
         icon_path = os.path.join(os.path.dirname(sys.argv[0]), 'icons', 'app_icon.png')
-        if os.path.exists(icon_path): base.setWindowIcon(QtGui.QIcon(icon_path))
+        if os.path.exists(icon_path):
+            base.setWindowIcon(QtGui.QIcon(icon_path))
         main_layout = QtWidgets.QVBoxLayout(base)
         main_layout.setContentsMargins(0, 0, 0, 0)
-        base.background = ThemeBackground(base, 'gradient')
+        base.background = ThemeBackground(base, theme)
         main_layout.addWidget(base.background)
 
 
 class ThemeBackground(QtWidgets.QWidget):
     """
-    A custom widget that creates a background for the application based on the selected theme.
+    Custom background widget. Renders per-theme:
+      acnr     - near-white fill with a thin red top-stripe
+      dark     - solid dark grey
+      gradient - legacy gradient PNG from the upstream project
+      plain    - solid neutral grey (light or dark per colorMode)
     """
-    def __init__(self, parent=None, theme='gradient', is_popup=False, border_radius=0):
+
+    def __init__(self, parent=None, theme='acnr', is_popup=False, border_radius=0):
         super().__init__(parent)
         self.setAttribute(QtCore.Qt.WA_StyledBackground, True)
         self.theme = theme
@@ -59,31 +102,51 @@ class ThemeBackground(QtWidgets.QWidget):
         self.border_radius = border_radius
 
     def paintEvent(self, event):
-        """
-        Override the paint event to draw the background based on the selected theme.
-        """
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
         painter.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform, True)
-        if self.theme == 'gradient':
-            if self.is_popup:
-                background_image = QtGui.QPixmap(os.path.join(os.path.dirname(sys.argv[0]), 'background_popup_dark.png' if colorMode == 'dark' else 'background_popup.png'))
-            else:
-                background_image = QtGui.QPixmap(os.path.join(os.path.dirname(sys.argv[0]), 'background_dark.png' if colorMode == 'dark' else 'background.png'))
-            # Adds a path/border using which the border radius would be drawn
-            path = QtGui.QPainterPath()
-            path.addRoundedRect(0, 0, self.width(), self.height(), self.border_radius, self.border_radius)
-            painter.setClipPath(path)
 
+        # Clip to rounded rect so every theme respects border_radius.
+        path = QtGui.QPainterPath()
+        path.addRoundedRect(0, 0, self.width(), self.height(),
+                            self.border_radius, self.border_radius)
+        painter.setClipPath(path)
+
+        if self.theme == 'acnr':
+            # Near-white background with a subtle red accent stripe at the top.
+            painter.fillRect(self.rect(), QtGui.QColor('#fafafa'))
+            stripe_h = 6
+            painter.fillRect(
+                QtCore.QRect(0, 0, self.width(), stripe_h),
+                QtGui.QColor('#b22222'),
+            )
+            return
+
+        if self.theme == 'dark':
+            painter.fillRect(self.rect(), QtGui.QColor(35, 35, 35))
+            stripe_h = 6
+            painter.fillRect(
+                QtCore.QRect(0, 0, self.width(), stripe_h),
+                QtGui.QColor('#b22222'),
+            )
+            return
+
+        if self.theme == 'gradient':
+            img_name = (
+                'background_popup_dark.png' if self.is_popup and colorMode == 'dark'
+                else 'background_popup.png' if self.is_popup
+                else 'background_dark.png' if colorMode == 'dark'
+                else 'background.png'
+            )
+            background_image = QtGui.QPixmap(
+                os.path.join(os.path.dirname(sys.argv[0]), img_name)
+            )
             painter.drawPixmap(self.rect(), background_image)
+            return
+
+        # 'plain' and any unknown theme
+        if colorMode == 'dark':
+            color = QtGui.QColor(35, 35, 35)
         else:
-            if colorMode == 'dark':
-                color = QtGui.QColor(35, 35, 35)  # Dark mode color
-            else:
-                color = QtGui.QColor(222, 222, 222)  # Light mode color
-            brush = QtGui.QBrush(color)
-            painter.setBrush(brush)
-            pen = QtGui.QPen(QtGui.QColor(0, 0, 0, 0))
-            pen.setWidth(0)
-            painter.setPen(pen)
-            painter.drawRoundedRect(QtCore.QRect(0, 0, self.width(), self.height()), self.border_radius, self.border_radius)
+            color = QtGui.QColor(222, 222, 222)
+        painter.fillRect(self.rect(), color)

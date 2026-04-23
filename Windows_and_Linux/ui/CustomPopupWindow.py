@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ui.UIUtils import ThemeBackground, colorMode
+from ui.UIUtils import ACCENT, ACCENT_HOVER, ThemeBackground, colorMode
 
 _ = lambda x: x
 
@@ -497,13 +497,13 @@ class CustomPopupWindow(QtWidgets.QWidget):
             send_btn.setIcon(QtGui.QIcon(send_icon))
         send_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {'#2e7d32' if colorMode=='dark' else '#4CAF50'};
+                background-color: {ACCENT};
                 border: none;
                 border-radius: 8px;
                 padding: 5px;
             }}
             QPushButton:hover {{
-                background-color: {'#1b5e20' if colorMode=='dark' else '#45a049'};
+                background-color: {ACCENT_HOVER};
             }}
         """)
         send_btn.setFixedSize(self.custom_input.sizeHint().height(),
