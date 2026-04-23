@@ -12,13 +12,17 @@ def run_pyinstaller_build():
         "--name=ACNR Intelligence",
         "--clean",
         "--noconfirm",
+        # google.auth.crypt imports cryptography at module load time, so we
+        # must bundle it even though ACNR only uses the Ollama provider.
+        # Same for google.auth internals - let PyInstaller collect all
+        # submodules so we don't trip on other lazy imports.
+        "--collect-submodules", "google.auth",
         # Exclude unnecessary modules
         "--exclude-module", "tkinter",
         "--exclude-module", "unittest",
         "--exclude-module", "IPython",
         "--exclude-module", "jedi",
         "--exclude-module", "email_validator",
-        "--exclude-module", "cryptography",
         "--exclude-module", "psutil",
         "--exclude-module", "pyzmq",
         "--exclude-module", "tornado",
