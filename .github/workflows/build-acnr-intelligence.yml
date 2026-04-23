@@ -52,12 +52,23 @@ jobs:
           $stage = "dist\ACNR-Intelligence-Windows"
           New-Item -ItemType Directory -Path $stage -Force | Out-Null
           Copy-Item "dist\ACNR Intelligence.exe" -Destination $stage -Force
+
+          # Ship options.json (default action buttons) next to the exe.
+          # The app reads it from os.path.dirname(sys.argv[0])/options.json;
+          # if it's missing the app falls back to the baked-in DEFAULT_OPTIONS
+          # in WritingToolApp.py, but we ship the file so users can edit it
+          # manually without opening the UI.
+          Copy-Item "options.json" -Destination $stage -Force
+
           # Bundle the README so users have a readme in the zip
           if (Test-Path "..\outlook-ollama\README.md") {
               Copy-Item "..\outlook-ollama\README.md" -Destination "$stage\README.md" -Force
           }
+
           # Zip
           Compress-Archive -Path "$stage\*" -DestinationPath "dist\ACNR-Intelligence-Windows.zip" -Force
+          Write-Host "Zip contents:"
+          Get-ChildItem $stage -Recurse | Select-Object Name, Length | Format-Table
           Get-Item "dist\ACNR-Intelligence-Windows.zip" | Format-List Name, Length
 
       - name: Upload build artifact (always - downloadable from Actions tab)

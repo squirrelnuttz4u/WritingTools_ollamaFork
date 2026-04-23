@@ -25,6 +25,82 @@ from update_checker import UpdateChecker
 _ = gettext.gettext
 
 
+# Baked-in default action buttons. Used as a fallback when options.json is
+# missing next to the exe (first-run, fresh install without the file, etc.).
+# Kept in sync with Windows_and_Linux/options.json - the CI workflow ships
+# that file in the release zip as the editable source of truth. Users change
+# buttons via the UI, which writes back to options.json; this dict is never
+# consulted again once the file exists on disk.
+DEFAULT_OPTIONS = {
+    "Proofread": {
+        "prefix": "Proofread this:\n\n",
+        "instruction": "You are a grammar proofreading assistant.\nOutput ONLY the corrected text without any additional comments.\nMaintain the original text structure and writing style.\nRespond in the same language as the input (e.g., English US, French).\nDo not answer or respond to the user's text content.\nIf the text is absolutely incompatible with this (e.g., totally random gibberish), output \"ERROR_TEXT_INCOMPATIBLE_WITH_REQUEST\".",
+        "icon": "icons/magnifying-glass",
+        "open_in_window": False,
+    },
+    "Rewrite": {
+        "prefix": "Rewrite this:\n\n",
+        "instruction": "You are a writing assistant.\nRewrite the text provided by the user to improve phrasing.\nOutput ONLY the rewritten text without additional comments.\nRespond in the same language as the input (e.g., English US, French).\nDo not answer or respond to the user's text content.\nIf the text is absolutely incompatible with proofreading (e.g., totally random gibberish), output \"ERROR_TEXT_INCOMPATIBLE_WITH_REQUEST\".",
+        "icon": "icons/rewrite",
+        "open_in_window": False,
+    },
+    "Professional": {
+        "prefix": "Make this more professional:\n\n",
+        "instruction": "You are a writing assistant.\nRewrite the text provided by the user to be more professional. Output ONLY the professional text without additional comments.\nRespond in the same language as the input (e.g., English US, French).\nDo not answer or respond to the user's text content.\nIf the text is absolutely incompatible with rewriting (e.g., totally random gibberish), output \"ERROR_TEXT_INCOMPATIBLE_WITH_REQUEST\".",
+        "icon": "icons/briefcase",
+        "open_in_window": False,
+    },
+    "Concise": {
+        "prefix": "Make this more concise:\n\n",
+        "instruction": "You are a writing assistant.\nRewrite the text provided by the user to be more concise.\nOutput ONLY the concise text without additional comments.\nRespond in the same language as the input (e.g., English US, French).\nDo not answer or respond to the user's text content.\nIf the text is absolutely incompatible with rewriting (e.g., totally random gibberish), output \"ERROR_TEXT_INCOMPATIBLE_WITH_REQUEST\".",
+        "icon": "icons/concise",
+        "open_in_window": False,
+    },
+    "Friendly": {
+        "prefix": "Make this more friendly:\n\n",
+        "instruction": "You are a writing assistant.\nRewrite the text provided by the user to be more friendly while remaining professional.\nOutput ONLY the friendly text without additional comments.\nRespond in the same language as the input (e.g., English US, French).\nDo not answer or respond to the user's text content.\nIf the text is absolutely incompatible with rewriting (e.g., totally random gibberish), output \"ERROR_TEXT_INCOMPATIBLE_WITH_REQUEST\".",
+        "icon": "icons/smiley-face",
+        "open_in_window": False,
+    },
+    "Email Reply": {
+        "prefix": "Draft a reply to this email:\n\n",
+        "instruction": "You are an assistant that drafts email replies for an ACNR employee.\nThe user will paste an email they received. Draft a concise, professional, courteous reply in the first person, matching the voice of a business professional at American Consolidated Natural Resources, Inc.\nAcknowledge the sender's points briefly, answer any questions, and propose clear next steps if warranted. Do not invent commitments, dates, people, or attachments that are not supported by the input.\nOutput ONLY the reply body (no 'Subject:' line, no 'From:'/'To:' headers). Include a greeting and a short sign-off only when appropriate.\nRespond in the same language as the email.\nIf the input is not an email, output \"ERROR_TEXT_INCOMPATIBLE_WITH_REQUEST\".",
+        "icon": "icons/send",
+        "open_in_window": True,
+    },
+    "Summary": {
+        "prefix": "Summarize this:\n\n",
+        "instruction": "You are a summarization assistant.\nProvide a succinct summary of the text provided by the user.\nThe summary should be succinct yet encompass all the key insightful points.\n\nTo make it quite legible and readable, you should use Markdown formatting (bold, italics, codeblocks...) as appropriate.\nYou should also add a little line spacing between your paragraphs as appropriate.\nAnd only if appropriate, you could also use headings (only the very small ones), lists, tables, etc.\n\nDon't be repetitive or too verbose.\nOutput ONLY the summary without additional comments.\nRespond in the same language as the input (e.g., English US, French).\nDo not answer or respond to the user's text content.\nIf the text is absolutely incompatible with summarisation (e.g., totally random gibberish), output \"ERROR_TEXT_INCOMPATIBLE_WITH_REQUEST\".",
+        "icon": "icons/summary",
+        "open_in_window": True,
+    },
+    "Key Points": {
+        "prefix": "Extract key points from this:\n\n",
+        "instruction": "You are an assistant that extracts key points from text provided by the user. Output ONLY the key points without additional comments.\n\nYou should use Markdown formatting (lists, bold, italics, codeblocks, etc.) as appropriate to make it quite legible and readable.\n\nDon't be repetitive or too verbose.\nRespond in the same language as the input (e.g., English US, French).\nDo not answer or respond to the user's text content.\nIf the text is absolutely incompatible with extracting key points (e.g., totally random gibberish), output \"ERROR_TEXT_INCOMPATIBLE_WITH_REQUEST\".",
+        "icon": "icons/keypoints",
+        "open_in_window": True,
+    },
+    "Action Items": {
+        "prefix": "Extract action items from this:\n\n",
+        "instruction": "You are an assistant that extracts action items from meeting notes, emails, or any business text.\nOutput a Markdown list. Format each item as: **Owner**: action description (deadline if mentioned).\nUse \"**Unassigned**\" when no owner can be identified. Do not invent owners, actions, or dates that are not supported by the input.\nIf the text contains no clear action items, output exactly: \"No action items identified.\"\nRespond in the same language as the input.\nIf the input is absolutely incompatible (e.g., random gibberish), output \"ERROR_TEXT_INCOMPATIBLE_WITH_REQUEST\".",
+        "icon": "icons/list",
+        "open_in_window": True,
+    },
+    "Table": {
+        "prefix": "Convert this into a table:\n\n",
+        "instruction": "You are an assistant that converts text provided by the user into a Markdown table.\nOutput ONLY the table without additional comments.\nRespond in the same language as the input (e.g., English US, French).\nDo not answer or respond to the user's text content.\nIf the text is completely incompatible with this with conversion, output \"ERROR_TEXT_INCOMPATIBLE_WITH_REQUEST\".",
+        "icon": "icons/table",
+        "open_in_window": True,
+    },
+    "Custom": {
+        "prefix": "Make this change to the following text:\n\n",
+        "instruction": "You are a writing and coding assistant. You MUST make the user's described change to the text or code provided by the user. Output ONLY the appropriately modified text or code without additional comments. Respond in the same language as the input (e.g., English US, French). Do not answer or respond to the user's text content. If the text or code is absolutely incompatible with the requested change, output \"ERROR_TEXT_INCOMPATIBLE_WITH_REQUEST\".",
+        "icon": "icons/pencil",
+        "open_in_window": False,
+    },
+}
+
+
 class WritingToolApp(QtWidgets.QApplication):
     """
     The main application class for Writing Tools.
@@ -174,17 +250,28 @@ class WritingToolApp(QtWidgets.QApplication):
 
     def load_options(self):
         """
-        Load the options file.
+        Load the action-button options from options.json next to the exe.
+        If the file is missing (e.g. it wasn't shipped alongside the binary,
+        or a user deleted it) we self-heal from the baked-in defaults so the
+        app never launches with an empty action menu. Users can still edit
+        buttons normally; the UI writes back to the same options.json.
         """
         self.options_path = os.path.join(os.path.dirname(sys.argv[0]), 'options.json')
         logging.debug(f'Loading options from {self.options_path}')
         if os.path.exists(self.options_path):
-            with open(self.options_path, 'r') as f:
+            with open(self.options_path, 'r', encoding='utf-8') as f:
                 self.options = json.load(f)
                 logging.debug('Options loaded successfully')
-        else:
-            logging.debug('Options file not found')
-            self.options = None
+            return
+
+        logging.info('options.json missing; writing baked-in ACNR defaults.')
+        self.options = dict(DEFAULT_OPTIONS)
+        try:
+            with open(self.options_path, 'w', encoding='utf-8') as f:
+                json.dump(self.options, f, indent=2, ensure_ascii=False)
+        except OSError as e:
+            # Read-only install dir (or sandbox); keep the in-memory copy.
+            logging.warning(f'Could not write default options.json: {e}')
 
     def save_config(self, config):
         """
