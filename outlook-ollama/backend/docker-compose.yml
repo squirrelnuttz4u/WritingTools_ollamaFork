@@ -1,0 +1,45 @@
+services:
+  ollama-proxy:
+    build: .
+    image: ollama-outlook-proxy:latest
+    container_name: ollama-outlook-proxy
+    restart: unless-stopped
+    environment:
+      OLLAMA_URL: "http://ollama.internal:11434"
+      OLLAMA_MODEL: "llama3.1:8b"
+      LLM_MAX_TOKENS: "1024"
+      LLM_TEMPERATURE: "0.4"
+      # Set a bearer secret; leave empty to disable auth (NOT recommended in prod).
+      API_KEY: ""
+      # Comma-separated allowlist of HTTPS origins where the add-in is hosted.
+      CORS_ORIGINS: "https://addin.corp.example.com"
+      REQUEST_TIMEOUT: "120"
+      LOG_LEVEL: "INFO"
+    expose:
+      - "5000"
+    networks:
+      - proxy-net
+
+  caddy:
+    image: caddy:2
+    container_name: ollama-outlook-caddy
+    restart: unless-stopped
+    depends_on:
+      - ollama-proxy
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - proxy-net
+
+networks:
+  proxy-net:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
