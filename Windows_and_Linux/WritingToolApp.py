@@ -111,15 +111,26 @@ class WritingToolApp(QtWidgets.QApplication):
     show_message_signal = Signal(str, str)  # a signal for showing message boxes
     hotkey_triggered_signal = Signal()
     followup_response_signal = Signal(str)
+    # Preview-before-replace flow signals.
+    # preview_ready_signal: option_name, original_text, rewritten_text
+    preview_ready_signal = Signal(str, str, str)
+    # preview_regenerated_signal: just the new rewritten text
+    preview_regenerated_signal = Signal(str)
+    preview_regen_failed_signal = Signal(str)
 
 
     def __init__(self, argv):
         super().__init__(argv)
         self.current_response_window = None
+        self.preview_window = None
+        self.last_rewrite_args = None  # (option, original) for regenerate
         logging.debug('Initializing WritingToolApp')
         self.output_ready_signal.connect(self.replace_text)
         self.show_message_signal.connect(self.show_message_box)
         self.hotkey_triggered_signal.connect(self.on_hotkey_pressed)
+        self.preview_ready_signal.connect(self._show_preview_window)
+        self.preview_regenerated_signal.connect(self._on_preview_regenerated)
+        self.preview_regen_failed_signal.connect(self._on_preview_regen_failed)
         self.config = None
         self.config_path = None
         self.load_config()
@@ -548,9 +559,23 @@ class WritingToolApp(QtWidgets.QApplication):
                         )
                         logging.debug('Invoked set_text on response window')
                 else:
-                    logging.debug('Getting response for direct replacement')
-                    self.current_provider.get_response(system_instruction, prompt)
-                    logging.debug('Response processed')
+                    logging.debug('Getting response for preview-and-confirm')
+                    response = self.current_provider.get_response(
+                        system_instruction, prompt, return_response=True
+                    )
+                    if not response:
+                        return
+                    text = response.strip()
+                    error_message = 'ERROR_TEXT_INCOMPATIBLE_WITH_REQUEST'
+                    if text == error_message:
+                        self.show_message_signal.emit(
+                            'Error',
+                            'The text is incompatible with the requested change.'
+                        )
+                        return
+                    self.last_rewrite_args = (option, selected_text)
+                    self.preview_ready_signal.emit(option, selected_text, text)
+                    logging.debug('Preview ready')
 
             except Exception as e:
                 logging.error(f'An error occurred: {e}', exc_info=True)
@@ -632,6 +657,105 @@ class WritingToolApp(QtWidgets.QApplication):
                 logging.error(f'Error processing output: {e}')
         else:
             logging.debug('No new text to process')
+
+    # ------------------------------------------------------------------
+    # Preview-before-replace flow
+    # ------------------------------------------------------------------
+    @Slot(str, str, str)
+    def _show_preview_window(self, option, original, rewrite):
+        """Open a confirmation window before pasting the rewrite."""
+        from ui.PreviewWindow import PreviewWindow
+        if self.preview_window is not None:
+            self.preview_window.close()
+        self.preview_window = PreviewWindow(option, original, rewrite)
+        self.preview_window.accepted.connect(self._apply_rewrite)
+        self.preview_window.regenerate.connect(self._on_preview_regenerate)
+        self.preview_window.destroyed.connect(self._on_preview_closed)
+
+        # Center near the screen the cursor is on, like the popup does.
+        screen = self.primaryScreen().geometry()
+        w, h = self.preview_window.width(), self.preview_window.height()
+        self.preview_window.move(
+            screen.x() + (screen.width() - w) // 2,
+            screen.y() + (screen.height() - h) // 2,
+        )
+
+        self.preview_window.show()
+        self.preview_window.raise_()
+        self.preview_window.activateWindow()
+
+    @Slot(str)
+    def _apply_rewrite(self, text):
+        """User clicked Accept: paste the rewrite into the source app."""
+        # Hide the preview first so focus returns to whatever was active
+        # when the popup originally opened (Outlook / Word / browser / etc.).
+        if self.preview_window is not None:
+            self.preview_window.hide()
+        QtCore.QTimer.singleShot(150, lambda: self._do_paste(text))
+
+    def _do_paste(self, text):
+        """Clipboard + simulated Ctrl+V, restoring the user's prior clipboard."""
+        try:
+            clipboard_backup = pyperclip.paste()
+        except Exception:
+            clipboard_backup = ''
+        try:
+            pyperclip.copy(text)
+            kbrd = pykeyboard.Controller()
+            kbrd.press(pykeyboard.Key.ctrl.value)
+            kbrd.press('v')
+            kbrd.release('v')
+            kbrd.release(pykeyboard.Key.ctrl.value)
+            time.sleep(0.2)
+        finally:
+            try:
+                pyperclip.copy(clipboard_backup)
+            except Exception:
+                pass
+
+    def _on_preview_regenerate(self):
+        """User clicked Regenerate: re-run the same option on the same input."""
+        if not self.last_rewrite_args:
+            return
+        option, original = self.last_rewrite_args
+        threading.Thread(
+            target=self._regenerate_thread,
+            args=(option, original),
+            daemon=True,
+        ).start()
+
+    def _regenerate_thread(self, option, original):
+        try:
+            selected_prompt = self.options.get(option, {})
+            prefix = selected_prompt.get('prefix', '')
+            system_instruction = selected_prompt.get('instruction', '')
+            prompt = f"{prefix}{original}"
+            response = self.current_provider.get_response(
+                system_instruction, prompt, return_response=True
+            )
+            if response:
+                self.preview_regenerated_signal.emit(response.strip())
+            else:
+                self.preview_regen_failed_signal.emit(
+                    "Empty response from the model. Try again or discard."
+                )
+        except Exception as e:
+            logging.exception('Regenerate failed')
+            self.preview_regen_failed_signal.emit(f"Regenerate failed: {e}")
+
+    @Slot(str)
+    def _on_preview_regenerated(self, text):
+        if self.preview_window is not None:
+            self.preview_window.update_rewrite(text)
+
+    @Slot(str)
+    def _on_preview_regen_failed(self, message):
+        if self.preview_window is not None:
+            self.preview_window.show_error(message)
+
+    def _on_preview_closed(self):
+        self.preview_window = None
+        self.last_rewrite_args = None
 
     def create_tray_icon(self):
         """
