@@ -427,26 +427,35 @@ class CustomPopupWindow(QtWidgets.QWidget):
         top_bar.setContentsMargins(0, 0, 0, 0)
         top_bar.setSpacing(0)
 
-        # The "Edit"/"Done" button (left), same exact size as close button
+        # The "Edit"/"Done" button (left). Falls back to a unicode glyph
+        # when the bundled pencil PNG can't be found, so users always have
+        # a visible target for entering edit mode.
         self.edit_button = QPushButton()
         pencil_icon = os.path.join(app_dir(),
                                 'icons',
                                 'pencil' + ('_dark' if colorMode=='dark' else '_light') + '.png')
         if os.path.exists(pencil_icon):
             self.edit_button.setIcon(QtGui.QIcon(pencil_icon))
+        else:
+            self.edit_button.setText("✎")  # pencil glyph
+            logging.warning(f'edit-button icon missing: {pencil_icon}')
         self.edit_button.setToolTip(_("Edit buttons - rearrange, edit, delete, or add new"))
-        # Reduced size to 24x24 to shrink top bar
-        self.edit_button.setFixedSize(24, 24)
+        # Slightly larger so the fallback glyph is comfortably tappable.
+        self.edit_button.setFixedSize(28, 28)
         self.edit_button.setStyleSheet(f"""
             QPushButton {{
-                background-color: transparent;
-                border: none;
+                background-color: {'#333' if colorMode=='dark' else '#ebebeb'};
+                color: {'#fff' if colorMode=='dark' else '#333'};
+                font-size: 16px;
+                border: 1px solid {'#555' if colorMode=='dark' else '#ccc'};
                 border-radius: 6px;
                 padding: 0px;
                 margin-top: 3px;
             }}
             QPushButton:hover {{
-                background-color: {'#333' if colorMode=='dark' else '#ebebeb'};
+                background-color: {ACCENT};
+                color: #ffffff;
+                border-color: {ACCENT};
             }}
         """)
         self.edit_button.clicked.connect(self.toggle_edit_mode)
@@ -463,24 +472,30 @@ class CustomPopupWindow(QtWidgets.QWidget):
         self.drag_label.hide()
         top_bar.addWidget(self.drag_label, 1, Qt.AlignVCenter | Qt.AlignHCenter)
 
-        # The "Reset" button (edit-mode only) - also 24x24
+        # The "Reset" button (edit-mode only). Same icon-or-glyph fallback.
         self.reset_button = QPushButton()
         reset_icon_path = os.path.join(app_dir(), 'icons',
                                     'restore' + ('_dark' if colorMode=='dark' else '_light') + '.png')
         if os.path.exists(reset_icon_path):
             self.reset_button.setIcon(QtGui.QIcon(reset_icon_path))
-        self.reset_button.setText("")
+            self.reset_button.setText("")
+        else:
+            self.reset_button.setText("⟲")  # restore glyph
         self.reset_button.setToolTip(_("Reset buttons to ACNR defaults"))
-        self.reset_button.setFixedSize(24, 24)
+        self.reset_button.setFixedSize(28, 28)
         self.reset_button.setStyleSheet(f"""
             QPushButton {{
-                background-color: transparent;
-                border: none;
+                background-color: {'#333' if colorMode=='dark' else '#ebebeb'};
+                color: {'#fff' if colorMode=='dark' else '#333'};
+                font-size: 16px;
+                border: 1px solid {'#555' if colorMode=='dark' else '#ccc'};
                 border-radius: 6px;
                 padding: 0px;
             }}
             QPushButton:hover {{
-                background-color: {'#333' if colorMode=='dark' else '#ebebeb'};
+                background-color: {ACCENT};
+                color: #ffffff;
+                border-color: {ACCENT};
             }}
         """)
         self.reset_button.clicked.connect(self.on_reset_clicked)
@@ -535,9 +550,14 @@ class CustomPopupWindow(QtWidgets.QWidget):
                                 'send' + ('_dark' if colorMode=='dark' else '_light') + '.png')
         if os.path.exists(send_icon):
             send_btn.setIcon(QtGui.QIcon(send_icon))
+        else:
+            send_btn.setText("➤")  # paper-plane / send glyph
         send_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {ACCENT};
+                color: white;
+                font-size: 16px;
+                font-weight: bold;
                 border: none;
                 border-radius: 8px;
                 padding: 5px;
@@ -698,25 +718,37 @@ class CustomPopupWindow(QtWidgets.QWidget):
             }}
         """
         
-        # Create edit icon (top-left)
+        # Create edit icon (top-left). Glyph fallback when PNG missing.
         edit_btn = QPushButton(btn.icon_container)
         edit_btn.setGeometry(3, 3, 16, 16)
+        edit_btn.setToolTip("Edit this button")
         pencil_icon = os.path.join(app_dir(),
                         'icons', 'pencil' + ('_dark' if colorMode=='dark' else '_light') + '.png')
         if os.path.exists(pencil_icon):
             edit_btn.setIcon(QtGui.QIcon(pencil_icon))
-        edit_btn.setStyleSheet(circle_style)
+        else:
+            edit_btn.setText("✎")
+        edit_btn.setStyleSheet(circle_style + (
+            "" if os.path.exists(pencil_icon)
+            else "QPushButton { color: white; font-size: 11px; font-weight: bold; }"
+        ))
         edit_btn.clicked.connect(partial(self.edit_button_clicked, btn))
         edit_btn.show()
         
-        # Create delete icon (top-right)
+        # Create delete icon (top-right). Glyph fallback when PNG missing.
         delete_btn = QPushButton(btn.icon_container)
         delete_btn.setGeometry(btn.width() - 23, 3, 16, 16)
+        delete_btn.setToolTip("Delete this button")
         del_icon = os.path.join(app_dir(),
                                 'icons', 'cross' + ('_dark' if colorMode=='dark' else '_light') + '.png')
         if os.path.exists(del_icon):
             delete_btn.setIcon(QtGui.QIcon(del_icon))
-        delete_btn.setStyleSheet(circle_style)
+        else:
+            delete_btn.setText("×")
+        delete_btn.setStyleSheet(circle_style + (
+            "" if os.path.exists(del_icon)
+            else "QPushButton { color: white; font-size: 13px; font-weight: bold; }"
+        ))
         delete_btn.clicked.connect(partial(self.delete_button_clicked, btn))
         delete_btn.show()
         

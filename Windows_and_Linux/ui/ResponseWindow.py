@@ -447,10 +447,17 @@ class ResponseWindow(QtWidgets.QWidget):
         bottom_bar.addWidget(self.input_field)
         
         send_button = QtWidgets.QPushButton()
-        send_button.setIcon(QtGui.QIcon(os.path.join(app_dir(), 'icons', 'send' + ('_dark' if colorMode == 'dark' else '_light') + '.png')))
+        send_icon = os.path.join(app_dir(), 'icons', 'send' + ('_dark' if colorMode == 'dark' else '_light') + '.png')
+        if os.path.exists(send_icon):
+            send_button.setIcon(QtGui.QIcon(send_icon))
+        else:
+            send_button.setText("➤")  # paper-plane glyph fallback
         send_button.setStyleSheet(f"""
             QPushButton {{
                 background-color: {ACCENT};
+                color: white;
+                font-size: 16px;
+                font-weight: bold;
                 border: none;
                 border-radius: 8px;
                 padding: 5px;
