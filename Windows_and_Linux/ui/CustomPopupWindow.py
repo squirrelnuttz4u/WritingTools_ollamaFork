@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ui.UIUtils import ACCENT, ACCENT_HOVER, ThemeBackground, colorMode
+from ui.UIUtils import ACCENT, ACCENT_HOVER, ThemeBackground, app_dir, colorMode
 
 _ = lambda x: x
 
@@ -398,7 +398,7 @@ class CustomPopupWindow(QtWidgets.QWidget):
         brand_row.setSpacing(8)
         brand_row.addStretch(1)
 
-        logo_path = os.path.join(os.path.dirname(sys.argv[0]), 'acnr_logo.png')
+        logo_path = os.path.join(app_dir(), 'acnr_logo.png')
         if os.path.exists(logo_path):
             logo_label = QtWidgets.QLabel()
             logo_label.setPixmap(
@@ -429,7 +429,7 @@ class CustomPopupWindow(QtWidgets.QWidget):
 
         # The "Edit"/"Done" button (left), same exact size as close button
         self.edit_button = QPushButton()
-        pencil_icon = os.path.join(os.path.dirname(sys.argv[0]),
+        pencil_icon = os.path.join(app_dir(),
                                 'icons',
                                 'pencil' + ('_dark' if colorMode=='dark' else '_light') + '.png')
         if os.path.exists(pencil_icon):
@@ -465,7 +465,7 @@ class CustomPopupWindow(QtWidgets.QWidget):
 
         # The "Reset" button (edit-mode only) - also 24x24
         self.reset_button = QPushButton()
-        reset_icon_path = os.path.join(os.path.dirname(sys.argv[0]), 'icons',
+        reset_icon_path = os.path.join(app_dir(), 'icons',
                                     'restore' + ('_dark' if colorMode=='dark' else '_light') + '.png')
         if os.path.exists(reset_icon_path):
             self.reset_button.setIcon(QtGui.QIcon(reset_icon_path))
@@ -530,7 +530,7 @@ class CustomPopupWindow(QtWidgets.QWidget):
         input_layout.addWidget(self.custom_input)
         
         send_btn = QPushButton()
-        send_icon = os.path.join(os.path.dirname(sys.argv[0]),
+        send_icon = os.path.join(app_dir(),
                                 'icons',
                                 'send' + ('_dark' if colorMode=='dark' else '_light') + '.png')
         if os.path.exists(send_icon):
@@ -575,7 +575,7 @@ class CustomPopupWindow(QtWidgets.QWidget):
 
     @staticmethod
     def load_options():
-        options_path = os.path.join(os.path.dirname(sys.argv[0]), 'options.json')
+        options_path = os.path.join(app_dir(), 'options.json')
         if os.path.exists(options_path):
             with open(options_path, 'r') as f:
                 data = json.load(f)
@@ -587,7 +587,7 @@ class CustomPopupWindow(QtWidgets.QWidget):
 
     @staticmethod
     def save_options(options):
-        options_path = os.path.join(os.path.dirname(sys.argv[0]), 'options.json')
+        options_path = os.path.join(app_dir(), 'options.json')
         with open(options_path, 'w') as f:
             json.dump(options, f, indent=2)
 
@@ -603,7 +603,7 @@ class CustomPopupWindow(QtWidgets.QWidget):
             if k=="Custom":
                 continue
             b = DraggableButton(self, k, k)
-            icon_path = os.path.join(os.path.dirname(sys.argv[0]),
+            icon_path = os.path.join(app_dir(),
                                     v["icon"] + ('_dark' if colorMode=='dark' else '_light') + '.png')
             if os.path.exists(icon_path):
                 b.setIcon(QtGui.QIcon(icon_path))
@@ -701,7 +701,7 @@ class CustomPopupWindow(QtWidgets.QWidget):
         # Create edit icon (top-left)
         edit_btn = QPushButton(btn.icon_container)
         edit_btn.setGeometry(3, 3, 16, 16)
-        pencil_icon = os.path.join(os.path.dirname(sys.argv[0]),
+        pencil_icon = os.path.join(app_dir(),
                         'icons', 'pencil' + ('_dark' if colorMode=='dark' else '_light') + '.png')
         if os.path.exists(pencil_icon):
             edit_btn.setIcon(QtGui.QIcon(pencil_icon))
@@ -712,7 +712,7 @@ class CustomPopupWindow(QtWidgets.QWidget):
         # Create delete icon (top-right)
         delete_btn = QPushButton(btn.icon_container)
         delete_btn.setGeometry(btn.width() - 23, 3, 16, 16)
-        del_icon = os.path.join(os.path.dirname(sys.argv[0]),
+        del_icon = os.path.join(app_dir(),
                                 'icons', 'cross' + ('_dark' if colorMode=='dark' else '_light') + '.png')
         if os.path.exists(del_icon):
             delete_btn.setIcon(QtGui.QIcon(del_icon))
@@ -827,7 +827,7 @@ class CustomPopupWindow(QtWidgets.QWidget):
 
         # Update the edit button icon now that icon_name is defined
         icon_path = os.path.join(
-            os.path.dirname(sys.argv[0]),
+            app_dir(),
             'icons',
             f"{icon_name}_{'dark' if colorMode=='dark' else 'light'}.png"
         )

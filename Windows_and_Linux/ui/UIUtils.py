@@ -8,6 +8,27 @@ from PySide6.QtGui import QImage, QPixmap
 
 
 # ---------------------------------------------------------------------------
+# Resource path resolution
+#
+# Every shipped resource (icons/, options.json, config.json, acnr_logo.png,
+# the gradient backgrounds) lives next to the running exe (in production) or
+# next to main.py (in dev). `app_dir()` is NOT reliable -
+# Windows can pass an unqualified `argv[0]` (e.g. `"ACNR Intelligence.exe"`)
+# when launched from autostart or via certain shell handlers, in which case
+# dirname() returns "" and lookups silently fall back to the cwd.
+#
+# That's exactly the failure mode where the tray icon goes missing on
+# Windows (QSystemTrayIcon constructed without a valid icon doesn't render).
+# Always use app_dir() instead of sys.argv[0] for resource resolution.
+# ---------------------------------------------------------------------------
+def app_dir() -> str:
+    """Absolute path to the directory holding the exe (frozen) or main.py (dev)."""
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(sys.argv[0]))
+
+
+# ---------------------------------------------------------------------------
 # Theme resolution (runs at import time - BEFORE any UI module captures
 # `colorMode` via `from ui.UIUtils import colorMode`).
 #
@@ -17,7 +38,7 @@ from PySide6.QtGui import QImage, QPixmap
 #   gradient- Legacy: the upstream gradient background; follows OS dark mode.
 #   plain   - Legacy: solid neutral grey; follows OS dark mode.
 # ---------------------------------------------------------------------------
-_CONFIG_PATH = os.path.join(os.path.dirname(sys.argv[0]), 'config.json')
+_CONFIG_PATH = os.path.join(app_dir(), 'config.json')
 try:
     with open(_CONFIG_PATH, 'r', encoding='utf-8') as _f:
         theme = (json.load(_f).get('theme') or 'acnr').lower()
@@ -76,7 +97,7 @@ class UIUtils:
     @classmethod
     def setup_window_and_layout(cls, base: QtWidgets.QWidget):
         # Set the window icon
-        icon_path = os.path.join(os.path.dirname(sys.argv[0]), 'icons', 'app_icon.png')
+        icon_path = os.path.join(app_dir(), 'icons', 'app_icon.png')
         if os.path.exists(icon_path):
             base.setWindowIcon(QtGui.QIcon(icon_path))
         main_layout = QtWidgets.QVBoxLayout(base)
@@ -139,7 +160,7 @@ class ThemeBackground(QtWidgets.QWidget):
                 else 'background.png'
             )
             background_image = QtGui.QPixmap(
-                os.path.join(os.path.dirname(sys.argv[0]), img_name)
+                os.path.join(app_dir(), img_name)
             )
             painter.drawPixmap(self.rect(), background_image)
             return

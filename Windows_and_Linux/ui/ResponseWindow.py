@@ -7,7 +7,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtWidgets import QScrollArea
 
-from ui.UIUtils import ACCENT, ACCENT_HOVER, UIUtils, colorMode
+from ui.UIUtils import ACCENT, ACCENT_HOVER, UIUtils, app_dir, colorMode
 
 _ = lambda x: x
 
@@ -371,7 +371,7 @@ class ResponseWindow(QtWidgets.QWidget):
             
         for icon, tooltip, action in zoom_controls:
             btn = QtWidgets.QPushButton()
-            btn.setIcon(QtGui.QIcon(os.path.join(os.path.dirname(sys.argv[0]), 'icons', icon + ('_dark' if colorMode == 'dark' else '_light') + '.png')))
+            btn.setIcon(QtGui.QIcon(os.path.join(app_dir(), 'icons', icon + ('_dark' if colorMode == 'dark' else '_light') + '.png')))
             btn.setStyleSheet(self.get_button_style())
             btn.setToolTip(tooltip)
             btn.clicked.connect(action)
@@ -447,7 +447,7 @@ class ResponseWindow(QtWidgets.QWidget):
         bottom_bar.addWidget(self.input_field)
         
         send_button = QtWidgets.QPushButton()
-        send_button.setIcon(QtGui.QIcon(os.path.join(os.path.dirname(sys.argv[0]), 'icons', 'send' + ('_dark' if colorMode == 'dark' else '_light') + '.png')))
+        send_button.setIcon(QtGui.QIcon(os.path.join(app_dir(), 'icons', 'send' + ('_dark' if colorMode == 'dark' else '_light') + '.png')))
         send_button.setStyleSheet(f"""
             QPushButton {{
                 background-color: {ACCENT};

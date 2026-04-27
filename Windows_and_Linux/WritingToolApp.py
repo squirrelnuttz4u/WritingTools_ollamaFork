@@ -22,6 +22,8 @@ from PySide6.QtGui import QCursor, QGuiApplication
 from PySide6.QtWidgets import QApplication, QMessageBox
 from update_checker import UpdateChecker
 
+from ui.UIUtils import app_dir
+
 _ = gettext.gettext
 
 
@@ -238,7 +240,7 @@ class WritingToolApp(QtWidgets.QApplication):
         """
         Load the configuration file.
         """
-        self.config_path = os.path.join(os.path.dirname(sys.argv[0]), 'config.json')
+        self.config_path = os.path.join(app_dir(), 'config.json')
         logging.debug(f'Loading config from {self.config_path}')
         if os.path.exists(self.config_path):
             with open(self.config_path, 'r') as f:
@@ -256,7 +258,7 @@ class WritingToolApp(QtWidgets.QApplication):
         app never launches with an empty action menu. Users can still edit
         buttons normally; the UI writes back to the same options.json.
         """
-        self.options_path = os.path.join(os.path.dirname(sys.argv[0]), 'options.json')
+        self.options_path = os.path.join(app_dir(), 'options.json')
         logging.debug(f'Loading options from {self.options_path}')
         if os.path.exists(self.options_path):
             with open(self.options_path, 'r', encoding='utf-8') as f:
@@ -386,7 +388,7 @@ class WritingToolApp(QtWidgets.QApplication):
             self.popup_window = ui.CustomPopupWindow.CustomPopupWindow(self, selected_text)
 
             # Set the window icon
-            icon_path = os.path.join(os.path.dirname(sys.argv[0]), 'icons', 'app_icon.png')
+            icon_path = os.path.join(app_dir(), 'icons', 'app_icon.png')
             if os.path.exists(icon_path): self.setWindowIcon(QtGui.QIcon(icon_path))
             # Get the screen containing the cursor
             cursor_pos = QCursor.pos()
@@ -634,27 +636,75 @@ class WritingToolApp(QtWidgets.QApplication):
     def create_tray_icon(self):
         """
         Create the system tray icon for the application.
+
+        Failure modes seen on Windows in production:
+          - QSystemTrayIcon constructed without a valid icon doesn't render
+            at all (the tray slot is silently dropped). Always provide one.
+          - Some locked-down corporate Windows builds report
+            isSystemTrayAvailable()==False; nothing we can do but log so
+            users know to look elsewhere.
         """
         if self.tray_icon:
             logging.debug('Tray icon already exists')
             return
 
-        logging.debug('Creating system tray icon')
-        icon_path = os.path.join(os.path.dirname(sys.argv[0]), 'icons', 'app_icon.png')
-        if not os.path.exists(icon_path):
-            logging.warning(f'Tray icon not found at {icon_path}')
-            # Use a default icon if not found
-            self.tray_icon = QtWidgets.QSystemTrayIcon(self)
-        else:
+        if not QtWidgets.QSystemTrayIcon.isSystemTrayAvailable():
+            logging.error(
+                'System tray is not available on this system. The app will '
+                'still respond to the global hotkey, but Settings/About/Quit '
+                'will not be reachable. Use the in-popup gear/menu instead.'
+            )
+            return
+
+        # Try several known locations for the tray icon. app_dir()/icons is the
+        # canonical install layout; we also accept a flat next-to-exe layout
+        # because that's what an absolute-minimum debug install looks like.
+        candidates = [
+            os.path.join(app_dir(), 'icons', 'app_icon.png'),
+            os.path.join(app_dir(), 'icons', 'app_icon.ico'),
+            os.path.join(app_dir(), 'app_icon.png'),
+            os.path.join(app_dir(), 'app_icon.ico'),
+        ]
+        icon_path = next((p for p in candidates if os.path.exists(p)), None)
+
+        if icon_path:
+            logging.info(f'Creating tray icon from {icon_path}')
             self.tray_icon = QtWidgets.QSystemTrayIcon(QtGui.QIcon(icon_path), self)
-        # Set the tooltip (hover name) for the tray icon
+        else:
+            logging.error(
+                'Tray icon image not found. Looked in: %s. Falling back to '
+                'the application style icon so the tray slot is still '
+                'visible (Windows hides icon-less tray entries).',
+                ', '.join(candidates),
+            )
+            fallback = self.style().standardIcon(
+                QtWidgets.QStyle.StandardPixmap.SP_ComputerIcon
+            )
+            self.tray_icon = QtWidgets.QSystemTrayIcon(fallback, self)
+
         self.tray_icon.setToolTip("ACNR Intelligence")
         self.tray_menu = QtWidgets.QMenu()
         self.tray_icon.setContextMenu(self.tray_menu)
 
+        # Single-click to open settings is a common Windows expectation.
+        # The right-click context menu (Settings/Pause/About/Exit) still works.
+        self.tray_icon.activated.connect(self._on_tray_activated)
+
         self.update_tray_menu()
         self.tray_icon.show()
-        logging.debug('Tray icon displayed')
+        if self.tray_icon.isVisible():
+            logging.info('Tray icon displayed.')
+        else:
+            logging.error(
+                'Tray icon was created but isVisible()==False. Windows may '
+                'have hidden it under the chevron - click the upward arrow '
+                'in the system tray to find it, then drag it onto the bar.'
+            )
+
+    def _on_tray_activated(self, reason):
+        """Open Settings on left-click; right-click already shows the menu."""
+        if reason == QtWidgets.QSystemTrayIcon.ActivationReason.Trigger:
+            self.show_settings()
 
     def update_tray_menu(self):
         """
