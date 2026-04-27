@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import sys
+import threading
 from functools import partial
 
 from PySide6 import QtCore, QtGui, QtWidgets
@@ -169,20 +170,33 @@ class ButtonEditDialog(QDialog):
         btn_layout = QHBoxLayout()
         ok_button = QPushButton("OK")
         cancel_button = QPushButton("Cancel")
-        for btn in (ok_button, cancel_button):
-            btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {'#444' if colorMode == 'dark' else '#f0f0f0'};
-                    color: {'#fff' if colorMode == 'dark' else '#000'};
-                    border: 1px solid {'#666' if colorMode == 'dark' else '#ccc'};
-                    border-radius: 5px;
-                    padding: 8px;
-                    min-width: 100px;
-                }}
-                QPushButton:hover {{
-                    background-color: {'#555' if colorMode == 'dark' else '#e0e0e0'};
-                }}
-            """)
+        ok_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {ACCENT};
+                color: #ffffff;
+                border: none;
+                border-radius: 5px;
+                padding: 8px;
+                min-width: 100px;
+                font-weight: 600;
+            }}
+            QPushButton:hover {{
+                background-color: {ACCENT_HOVER};
+            }}
+        """)
+        cancel_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {'#444' if colorMode == 'dark' else '#f0f0f0'};
+                color: {'#fff' if colorMode == 'dark' else '#000'};
+                border: 1px solid {'#666' if colorMode == 'dark' else '#ccc'};
+                border-radius: 5px;
+                padding: 8px;
+                min-width: 100px;
+            }}
+            QPushButton:hover {{
+                background-color: {'#555' if colorMode == 'dark' else '#e0e0e0'};
+            }}
+        """)
         btn_layout.addWidget(ok_button)
         btn_layout.addWidget(cancel_button)
         layout.addLayout(btn_layout)
@@ -330,12 +344,17 @@ class DraggableButton(QtWidgets.QPushButton):
             self.icon_container.setGeometry(0, 0, self.width(), self.height())
 
 class CustomPopupWindow(QtWidgets.QWidget):
+    # Emitted by the background Ollama probe so we can update the status dot
+    # from the main UI thread (Qt widgets are not thread-safe).
+    _status_signal = QtCore.Signal(str, str)
+
     def __init__(self, app, selected_text):
         super().__init__()
         self.app = app
         self.selected_text = selected_text
         self.edit_mode = False
         self.has_text = bool(selected_text.strip())
+        self._status_signal.connect(self._set_status)
         
         self.drag_label = None
         self.edit_button = None
@@ -371,8 +390,14 @@ class CustomPopupWindow(QtWidgets.QWidget):
         content_layout.setContentsMargins(10, 4, 10, 10)
         content_layout.setSpacing(10)
 
-        # ACNR branding banner - shown above the top bar in both button mode
-        # and chat mode. Uses the wide wordmark logo shipped next to the exe.
+        # ACNR branding banner + Ollama connection-status dot. Both shown in
+        # button mode and chat mode. The status dot is set asynchronously by
+        # _probe_ollama; until that returns we show a neutral grey "checking".
+        brand_row = QHBoxLayout()
+        brand_row.setContentsMargins(0, 0, 0, 0)
+        brand_row.setSpacing(8)
+        brand_row.addStretch(1)
+
         logo_path = os.path.join(os.path.dirname(sys.argv[0]), 'acnr_logo.png')
         if os.path.exists(logo_path):
             logo_label = QtWidgets.QLabel()
@@ -383,7 +408,19 @@ class CustomPopupWindow(QtWidgets.QWidget):
             )
             logo_label.setAlignment(Qt.AlignCenter)
             logo_label.setStyleSheet("background: transparent;")
-            content_layout.addWidget(logo_label, 0, Qt.AlignHCenter)
+            brand_row.addWidget(logo_label, 0, Qt.AlignVCenter)
+
+        # Status dot - colored circle + tooltip with the Ollama URL/model.
+        self.status_dot = QtWidgets.QLabel()
+        self.status_dot.setFixedSize(12, 12)
+        self._set_status('checking', 'Checking Ollama...')
+        brand_row.addWidget(self.status_dot, 0, Qt.AlignVCenter)
+        brand_row.addStretch(1)
+        content_layout.addLayout(brand_row)
+
+        # Kick off a background probe (cheap HEAD on /api/tags). Result lands
+        # via the QTimer below so we never block the popup from appearing.
+        QtCore.QTimer.singleShot(0, self._probe_ollama)
 
         # TOP BAR LAYOUT & STYLE
         top_bar = QHBoxLayout()
@@ -397,6 +434,7 @@ class CustomPopupWindow(QtWidgets.QWidget):
                                 'pencil' + ('_dark' if colorMode=='dark' else '_light') + '.png')
         if os.path.exists(pencil_icon):
             self.edit_button.setIcon(QtGui.QIcon(pencil_icon))
+        self.edit_button.setToolTip(_("Edit buttons - rearrange, edit, delete, or add new"))
         # Reduced size to 24x24 to shrink top bar
         self.edit_button.setFixedSize(24, 24)
         self.edit_button.setStyleSheet(f"""
@@ -415,11 +453,11 @@ class CustomPopupWindow(QtWidgets.QWidget):
         top_bar.addWidget(self.edit_button, 0, Qt.AlignLeft)
 
         # The label "Drag to rearrange" (BOLD as requested)
-        self.drag_label = QLabel("Drag to rearrange")
+        self.drag_label = QLabel("Drag to reorder  ·  hover a button to edit/delete  ·  + Add New below")
         self.drag_label.setStyleSheet(f"""
             color: {'#fff' if colorMode=='dark' else '#333'};
-            font-size: 14px;
-            font-weight: bold; /* <--- BOLD TEXT */
+            font-size: 12px;
+            font-weight: 600;
         """)
         self.drag_label.setAlignment(Qt.AlignCenter)
         self.drag_label.hide()
@@ -432,6 +470,7 @@ class CustomPopupWindow(QtWidgets.QWidget):
         if os.path.exists(reset_icon_path):
             self.reset_button.setIcon(QtGui.QIcon(reset_icon_path))
         self.reset_button.setText("")
+        self.reset_button.setToolTip(_("Reset buttons to ACNR defaults"))
         self.reset_button.setFixedSize(24, 24)
         self.reset_button.setStyleSheet(f"""
             QPushButton {{
@@ -450,6 +489,7 @@ class CustomPopupWindow(QtWidgets.QWidget):
 
         # Close button block:
         self.close_button = QPushButton("×")
+        self.close_button.setToolTip(_("Close (Esc)"))
         self.close_button.setFixedSize(24, 24)
         self.close_button.setStyleSheet(f"""
             QPushButton {{
@@ -611,20 +651,22 @@ class CustomPopupWindow(QtWidgets.QWidget):
         
         # Add New button (only in edit mode & only if we have text)
         if self.edit_mode and self.has_text:
-            add_btn = QPushButton("+ Add New")
+            add_btn = QPushButton("+ Add New Button")
+            add_btn.setToolTip("Create a new action button - opens an editor where you set the name, system instruction, and behaviour.")
             add_btn.setStyleSheet(f"""
                 QPushButton {{
-                    background-color: {'#333' if colorMode=='dark' else '#e0e0e0'};
-                    border: 1px solid {'#666' if colorMode=='dark' else '#ccc'};
+                    background-color: {ACCENT};
+                    border: none;
                     border-radius: 8px;
                     padding: 10px;
                     font-size: 14px;
+                    font-weight: 600;
                     text-align: center;
-                    color: {'#fff' if colorMode=='dark' else '#000'};
+                    color: #ffffff;
                     margin-top: 10px;
                 }}
                 QPushButton:hover {{
-                    background-color: {'#444' if colorMode=='dark' else '#d0d0d0'};
+                    background-color: {ACCENT_HOVER};
                 }}
             """)
             add_btn.clicked.connect(self.add_new_button_clicked)
@@ -680,6 +722,57 @@ class CustomPopupWindow(QtWidgets.QWidget):
         
         btn.icon_container.raise_()
         btn.icon_container.show()
+
+    def _set_status(self, level: str, tooltip: str):
+        """Paint the connection-status dot. level in {'ok','bad','checking'}."""
+        colors = {
+            'ok':       '#3aa655',  # green - reachable + model present
+            'warn':     '#e0a000',  # amber - reachable but model missing
+            'bad':      '#c0392b',  # red   - unreachable
+            'checking': '#9e9e9e',  # neutral grey - probe in flight
+        }
+        color = colors.get(level, colors['checking'])
+        self.status_dot.setStyleSheet(
+            f"background: {color}; border: 1px solid rgba(0,0,0,80);"
+            f"border-radius: 6px;"
+        )
+        self.status_dot.setToolTip(tooltip)
+
+    def _probe_ollama(self):
+        """Quick reachability check on the Ollama server. Runs in a background
+        thread so the popup never blocks waiting for the network."""
+        provider = getattr(self.app, 'current_provider', None)
+        api_base = getattr(provider, 'api_base', None) if provider else None
+        api_model = getattr(provider, 'api_model', None) if provider else None
+        if not api_base:
+            self._set_status('bad', 'No Ollama server configured (open Settings).')
+            return
+
+        def worker():
+            try:
+                import urllib.request
+                with urllib.request.urlopen(
+                    api_base.rstrip('/') + '/api/tags', timeout=2.5
+                ) as resp:
+                    import json as _json
+                    body = _json.loads(resp.read().decode('utf-8'))
+                models = [m.get('name') for m in body.get('models', []) if m.get('name')]
+                if api_model and api_model not in models:
+                    msg = (f"Ollama reachable at {api_base}, but model "
+                           f"'{api_model}' is not pulled.\nAvailable: "
+                           f"{', '.join(models) or '(none)'}")
+                    self._status_signal.emit('warn', msg)
+                else:
+                    self._status_signal.emit(
+                        'ok',
+                        f"Ollama OK\n{api_base}\nModel: {api_model or '(default)'}"
+                    )
+            except Exception as e:
+                self._status_signal.emit(
+                    'bad', f"Cannot reach Ollama at {api_base}\n{e}"
+                )
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def toggle_edit_mode(self):
         """Toggle edit mode with improved button labels and state handling."""

@@ -7,7 +7,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtWidgets import QScrollArea
 
-from ui.UIUtils import UIUtils, colorMode
+from ui.UIUtils import ACCENT, ACCENT_HOVER, UIUtils, colorMode
 
 _ = lambda x: x
 
@@ -450,13 +450,13 @@ class ResponseWindow(QtWidgets.QWidget):
         send_button.setIcon(QtGui.QIcon(os.path.join(os.path.dirname(sys.argv[0]), 'icons', 'send' + ('_dark' if colorMode == 'dark' else '_light') + '.png')))
         send_button.setStyleSheet(f"""
             QPushButton {{
-                background-color: {'#2e7d32' if colorMode == 'dark' else '#4CAF50'};
+                background-color: {ACCENT};
                 border: none;
                 border-radius: 8px;
                 padding: 5px;
             }}
             QPushButton:hover {{
-                background-color: {'#1b5e20' if colorMode == 'dark' else '#45a049'};
+                background-color: {ACCENT_HOVER};
             }}
         """)
         send_button.setFixedSize(self.input_field.sizeHint().height(), self.input_field.sizeHint().height())

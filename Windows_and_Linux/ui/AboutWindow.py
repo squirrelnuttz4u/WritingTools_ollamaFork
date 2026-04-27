@@ -2,7 +2,7 @@ import webbrowser
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from ui.UIUtils import UIUtils, colorMode
+from ui.UIUtils import ACCENT, ACCENT_HOVER, UIUtils, colorMode
 
 _ = lambda x: x
 
@@ -94,18 +94,18 @@ class AboutWindow(QtWidgets.QWidget):
 
         # Add "Check for updates" button
         update_button = QtWidgets.QPushButton('Check for updates')
-        update_button.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
+        update_button.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {ACCENT};
                 color: white;
                 padding: 10px;
                 font-size: 16px;
                 border: none;
                 border-radius: 5px;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
+            }}
+            QPushButton:hover {{
+                background-color: {ACCENT_HOVER};
+            }}
         """)
         update_button.clicked.connect(self.check_for_updates)
         content_layout.addWidget(update_button)

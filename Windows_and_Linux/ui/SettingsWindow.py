@@ -81,7 +81,7 @@ class SettingsWindow(QtWidgets.QWidget):
             ollama_button = QtWidgets.QPushButton(provider.ollama_button_text)
             ollama_button.setStyleSheet(f"""
                 QPushButton {{
-                    background-color: {'#4CAF50' if colorMode == 'dark' else '#008CBA'};
+                    background-color: {ACCENT};
                     color: white;
                     padding: 10px;
                     font-size: 16px;
@@ -89,7 +89,7 @@ class SettingsWindow(QtWidgets.QWidget):
                     border-radius: 5px;
                 }}
                 QPushButton:hover {{
-                    background-color: {'#45a049' if colorMode == 'dark' else '#007095'};
+                    background-color: {ACCENT_HOVER};
                 }}
             """)
             ollama_button.clicked.connect(provider.ollama_button_action)
@@ -99,7 +99,7 @@ class SettingsWindow(QtWidgets.QWidget):
             main_button = QtWidgets.QPushButton(provider.button_text)
             main_button.setStyleSheet(f"""
                 QPushButton {{
-                    background-color: {'#4CAF50' if colorMode == 'dark' else '#008CBA'};
+                    background-color: {ACCENT};
                     color: white;
                     padding: 10px;
                     font-size: 16px;
@@ -107,7 +107,7 @@ class SettingsWindow(QtWidgets.QWidget):
                     border-radius: 5px;
                 }}
                 QPushButton:hover {{
-                    background-color: {'#45a049' if colorMode == 'dark' else '#007095'};
+                    background-color: {ACCENT_HOVER};
                 }}
             """)
             main_button.clicked.connect(provider.button_action)
@@ -120,7 +120,7 @@ class SettingsWindow(QtWidgets.QWidget):
                 button = QtWidgets.QPushButton(provider.button_text)
                 button.setStyleSheet(f"""
                     QPushButton {{
-                        background-color: {'#4CAF50' if colorMode == 'dark' else '#008CBA'};
+                        background-color: {ACCENT};
                         color: white;
                         padding: 10px;
                         font-size: 16px;
@@ -128,7 +128,7 @@ class SettingsWindow(QtWidgets.QWidget):
                         border-radius: 5px;
                     }}
                     QPushButton:hover {{
-                        background-color: {'#45a049' if colorMode == 'dark' else '#007095'};
+                        background-color: {ACCENT_HOVER};
                     }}
                 """)
                 button.clicked.connect(provider.button_action)
