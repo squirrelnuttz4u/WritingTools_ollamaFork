@@ -50,38 +50,78 @@ jobs:
       - name: Stage release payload
         run: |
           $stage = "dist\ACNR-Intelligence-Windows"
+          if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
           New-Item -ItemType Directory -Path $stage -Force | Out-Null
           Copy-Item "dist\ACNR Intelligence.exe" -Destination $stage -Force
 
           # Ship options.json (default action buttons) next to the exe.
-          # The app reads it from os.path.dirname(sys.argv[0])/options.json;
+          # The app reads it from os.path.join(app_dir(), 'options.json');
           # if it's missing the app falls back to the baked-in DEFAULT_OPTIONS
           # in WritingToolApp.py, but we ship the file so users can edit it
           # manually without opening the UI.
           Copy-Item "options.json" -Destination $stage -Force
 
-          # Ship the ACNR wide-logo banner used by the popup header
-          # (CustomPopupWindow loads it from os.path.dirname(sys.argv[0])).
+          # Ship the ACNR wide-logo banner used by the popup header.
           if (Test-Path "acnr_logo.png") {
               Copy-Item "acnr_logo.png" -Destination $stage -Force
+          } else {
+              throw "acnr_logo.png is missing from the source - the popup header will be blank."
           }
 
-          # Ship the icons/ directory. The popup / buttons load icons from
-          # os.path.dirname(sys.argv[0])/icons/*.png at runtime; if the dir
-          # isn't there the buttons render without their glyphs. Also gives
-          # the tray / window icon something to fall back to.
-          Copy-Item "icons" -Destination $stage -Recurse -Force
+          # Ship the icons/ directory. The popup, buttons, and tray icon all
+          # load icons via app_dir()/icons/*.png at runtime.
+          Copy-Item "icons" -Destination "$stage\icons" -Recurse -Force
 
           # Bundle the README so users have a readme in the zip
           if (Test-Path "..\outlook-ollama\README.md") {
               Copy-Item "..\outlook-ollama\README.md" -Destination "$stage\README.md" -Force
           }
 
-          # Zip
-          Compress-Archive -Path "$stage\*" -DestinationPath "dist\ACNR-Intelligence-Windows.zip" -Force
-          Write-Host "Zip contents:"
-          Get-ChildItem $stage -Recurse | Select-Object FullName, Length | Format-Table
-          Get-Item "dist\ACNR-Intelligence-Windows.zip" | Format-List Name, Length
+          Write-Host "Staged contents:"
+          Get-ChildItem $stage -Recurse | Select-Object FullName, Length | Format-Table -AutoSize
+
+      - name: Build zip via .NET ZipFile (PowerShell Compress-Archive drops subdirs in some PS versions)
+        run: |
+          $stage = "dist\ACNR-Intelligence-Windows"
+          $zipPath = "dist\ACNR-Intelligence-Windows.zip"
+          if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [System.IO.Compression.ZipFile]::CreateFromDirectory(
+              (Resolve-Path $stage).Path,
+              (Join-Path (Resolve-Path "dist").Path "ACNR-Intelligence-Windows.zip")
+          )
+          Get-Item $zipPath | Format-List Name, Length
+
+      - name: Verify required files are in the zip
+        run: |
+          $zipPath = "dist\ACNR-Intelligence-Windows.zip"
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $zipPath).Path)
+          try {
+              $names = $zip.Entries | ForEach-Object { $_.FullName }
+              Write-Host "Zip entries:"
+              $names | Sort-Object | ForEach-Object { Write-Host "  $_" }
+
+              $required = @(
+                  "ACNR Intelligence.exe",
+                  "options.json",
+                  "acnr_logo.png",
+                  "icons/app_icon.png"
+              )
+              $missing = @()
+              foreach ($r in $required) {
+                  $needle = $r.Replace("\", "/")
+                  if (-not ($names -contains $needle)) {
+                      $missing += $r
+                  }
+              }
+              if ($missing.Count -gt 0) {
+                  throw "Required files missing from zip: $($missing -join ', ')"
+              }
+              Write-Host "All required files present."
+          } finally {
+              $zip.Dispose()
+          }
 
       - name: Upload build artifact (always - downloadable from Actions tab)
         uses: actions/upload-artifact@v4
